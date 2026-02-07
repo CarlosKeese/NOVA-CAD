@@ -16,9 +16,11 @@ pub struct Quaternion {
 
 impl Quaternion {
     /// Identity quaternion (no rotation)
-    pub const IDENTITY: Self = Self {
-        inner: na::UnitQuaternion::identity(),
-    };
+    pub fn identity() -> Self {
+        Self {
+            inner: na::UnitQuaternion::identity(),
+        }
+    }
 
     /// Create a quaternion from components (will be normalized)
     #[inline]
@@ -213,7 +215,7 @@ impl Quaternion {
 
 impl Default for Quaternion {
     fn default() -> Self {
-        Self::IDENTITY
+        Self::identity()
     }
 }
 

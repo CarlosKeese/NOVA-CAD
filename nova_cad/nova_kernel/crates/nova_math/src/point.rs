@@ -65,13 +65,13 @@ impl Point3 {
     /// Distance to another point
     #[inline]
     pub fn distance_to(&self, other: &Point3) -> f64 {
-        self.inner.distance(&other.inner)
+        (self.inner - other.inner).norm()
     }
 
     /// Squared distance to another point (faster, avoids sqrt)
     #[inline]
     pub fn distance_squared_to(&self, other: &Point3) -> f64 {
-        self.inner.coords.metric_distance_squared(&other.inner.coords)
+        (self.inner - other.inner).norm_squared()
     }
 
     /// Midpoint between this point and another
@@ -97,7 +97,7 @@ impl Point3 {
     /// Convert to homogeneous coordinates (x, y, z, 1)
     #[inline]
     pub fn to_homogeneous(&self) -> na::Point4<f64> {
-        self.inner.to_homogeneous()
+        na::Point4::new(self.x(), self.y(), self.z(), 1.0)
     }
 
     /// Convert to vector (from origin)
@@ -221,7 +221,7 @@ impl Point2 {
     /// Distance to another point
     #[inline]
     pub fn distance_to(&self, other: &Point2) -> f64 {
-        self.inner.distance(&other.inner)
+        (self.inner - other.inner).norm()
     }
 
     /// Convert to array

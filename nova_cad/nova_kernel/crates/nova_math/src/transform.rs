@@ -20,10 +20,12 @@ pub struct Transform3 {
 
 impl Transform3 {
     /// Identity transformation (no rotation, no translation)
-    pub const IDENTITY: Self = Self {
-        rotation: na::UnitQuaternion::identity(),
-        translation: na::Vector3::new(0.0, 0.0, 0.0),
-    };
+    pub fn identity() -> Self {
+        Self {
+            rotation: na::UnitQuaternion::identity(),
+            translation: na::Vector3::new(0.0, 0.0, 0.0),
+        }
+    }
 
     /// Create a new transformation from rotation and translation
     #[inline]
@@ -82,7 +84,7 @@ impl Transform3 {
     /// Create a look-at transformation
     #[inline]
     pub fn look_at_lh(eye: &Point3, target: &Point3, up: &Vec3) -> Self {
-        let rotation = na::UnitQuaternion::look_at_lh(&(target - eye).to_nalgebra(), &up.to_nalgebra());
+        let rotation = na::UnitQuaternion::look_at_lh(&(target.to_nalgebra() - eye.to_nalgebra()), &up.to_nalgebra());
         Self {
             rotation,
             translation: eye.to_nalgebra().coords,
@@ -137,7 +139,7 @@ impl Transform3 {
 
     /// Inverse transformation
     #[inline]
-    pub fn inverse(&self) Transform3 {
+    pub fn inverse(&self) -> Transform3 {
         let inv_rotation = self.rotation.inverse();
         Transform3 {
             rotation: inv_rotation,
@@ -212,7 +214,7 @@ impl Transform3 {
 
 impl Default for Transform3 {
     fn default() -> Self {
-        Self::IDENTITY
+        Self::identity()
     }
 }
 

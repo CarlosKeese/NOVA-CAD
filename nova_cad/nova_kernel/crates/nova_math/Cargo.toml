@@ -9,7 +9,7 @@ rust-version.workspace = true
 description = "Mathematical foundation for Nova Kernel 3D"
 
 [dependencies]
-nalgebra.workspace = true
+nalgebra = { workspace = true, features = ["serde-serialize"] }
 num-traits.workspace = true
 thiserror.workspace = true
 serde.workspace = true

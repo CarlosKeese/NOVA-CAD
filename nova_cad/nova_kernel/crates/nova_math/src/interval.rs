@@ -14,10 +14,12 @@ pub struct Interval {
 
 impl Interval {
     /// Empty interval
-    pub const EMPTY: Self = Self {
-        min: f64::INFINITY,
-        max: f64::NEG_INFINITY,
-    };
+    pub fn empty() -> Self {
+        Self {
+            min: f64::INFINITY,
+            max: f64::NEG_INFINITY,
+        }
+    }
 
     /// Interval containing all real numbers
     pub const ENTIRE: Self = Self {
@@ -244,7 +246,7 @@ impl Interval {
 
 impl Default for Interval {
     fn default() -> Self {
-        Self::EMPTY
+        Self::empty()
     }
 }
 

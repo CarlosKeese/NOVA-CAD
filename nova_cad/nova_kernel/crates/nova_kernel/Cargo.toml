@@ -1,20 +1,22 @@
 [package]
-name = "nova_ops"
+name = "nova_kernel"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-description = "Boolean operations and features for Nova Kernel 3D"
 
 [dependencies]
 nova_math = { path = "../nova_math" }
 nova_geom = { path = "../nova_geom" }
 nova_topo = { path = "../nova_topo" }
-
-thiserror = { workspace = true }
-rayon = { workspace = true }
+nova_ops = { path = "../nova_ops" }
+nova_io = { path = "../nova_io" }
+nova_tess = { path = "../nova_tess" }
+nova_check = { path = "../nova_check" }
+nova_sync = { path = "../nova_sync" }
+nova_ffi = { path = "../nova_ffi" }
 
 [dev-dependencies]
 criterion = { workspace = true }

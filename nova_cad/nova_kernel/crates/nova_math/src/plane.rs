@@ -112,7 +112,7 @@ impl Plane {
     /// negative if on the opposite side.
     #[inline]
     pub fn signed_distance_to_point(&self, p: &Point3) -> f64 {
-        self.normal.dot(&(*p - self.origin).to_vector())
+        self.normal.dot(&Vec3::from_nalgebra(p.to_nalgebra() - self.origin.to_nalgebra()))
     }
 
     /// Absolute distance from a point to the plane
@@ -238,7 +238,7 @@ impl Plane {
             (n1_cross_n2.cross(&n2) * d1 + n1.cross(&n1_cross_n2) * d2) / n1_cross_n2_sq
         );
         
-        Some((Point3::from_nalgebra(point), Vec3::from_nalgebra(dir)))
+        Some((Point3::from_nalgebra(point), dir))
     }
 
     /// Get the intersection point of three planes
@@ -306,13 +306,13 @@ impl Plane {
     /// Get the plane's bounding box (unbounded, returns infinite)
     #[inline]
     pub fn bounding_box(&self) -> BoundingBox3 {
-        BoundingBox3::EMPTY
+        BoundingBox3::empty()
     }
 }
 
 impl Bounded for Plane {
     fn bounding_box(&self) -> BoundingBox3 {
-        BoundingBox3::EMPTY
+        BoundingBox3::empty()
     }
 }
 

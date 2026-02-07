@@ -13,14 +13,18 @@ pub struct Mat4 {
 
 impl Mat4 {
     /// Identity matrix
-    pub const IDENTITY: Self = Self {
-        inner: na::Matrix4::identity(),
-    };
+    pub fn identity() -> Self {
+        Self {
+            inner: na::Matrix4::identity(),
+        }
+    }
 
     /// Zero matrix
-    pub const ZERO: Self = Self {
-        inner: na::Matrix4::zeros(),
-    };
+    pub fn zero() -> Self {
+        Self {
+            inner: na::Matrix4::zeros(),
+        }
+    }
 
     /// Create a new matrix from column-major array
     #[inline]
@@ -168,13 +172,31 @@ impl Mat4 {
         self.determinant().abs() > tol
     }
 
+    /// Get rotation as quaternion
+    #[inline]
+    pub fn rotation(&self) -> na::UnitQuaternion<f64> {
+        let rot_mat = self.rotation_scale();
+        na::UnitQuaternion::from_matrix(&rot_mat.inner)
+    }
+
+    /// Get scale vector
+    #[inline]
+    pub fn scale(&self) -> Vec3 {
+        let m = &self.inner;
+        Vec3::new(
+            m.column(0).xyz().norm(),
+            m.column(1).xyz().norm(),
+            m.column(2).xyz().norm(),
+        )
+    }
+
     /// Decompose into translation, rotation, scale
     #[inline]
     pub fn decompose(&self) -> (Vec3, na::UnitQuaternion<f64>, Vec3) {
         let translation = self.translation();
-        let rotation_scale = self.rotation_scale();
-        let (scale, rotation, _) = rotation_scale.inner.polar_decomposition();
-        (translation, rotation, Vec3::from_nalgebra(scale))
+        let rotation = self.rotation();
+        let scale = self.scale();
+        (translation, rotation, scale)
     }
 
     /// Create look-at view matrix
@@ -238,7 +260,7 @@ impl Mat4 {
 
 impl Default for Mat4 {
     fn default() -> Self {
-        Self::IDENTITY
+        Self::identity()
     }
 }
 
@@ -294,9 +316,11 @@ pub struct Mat3 {
 
 impl Mat3 {
     /// Identity matrix
-    pub const IDENTITY: Self = Self {
-        inner: na::Matrix3::identity(),
-    };
+    pub fn identity() -> Self {
+        Self {
+            inner: na::Matrix3::identity(),
+        }
+    }
 
     /// Create a new matrix
     #[inline]

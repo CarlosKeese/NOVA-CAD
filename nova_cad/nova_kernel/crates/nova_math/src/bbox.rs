@@ -15,10 +15,12 @@ pub struct BoundingBox3 {
 
 impl BoundingBox3 {
     /// Empty bounding box (invalid, min > max)
-    pub const EMPTY: Self = Self {
-        min: Point3::new(f64::INFINITY, f64::INFINITY, f64::INFINITY),
-        max: Point3::new(f64::NEG_INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY),
-    };
+    pub fn empty() -> Self {
+        Self {
+            min: Point3::new(f64::INFINITY, f64::INFINITY, f64::INFINITY),
+            max: Point3::new(f64::NEG_INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY),
+        }
+    }
 
     /// Create a new bounding box from min and max corners
     #[inline]
@@ -340,7 +342,7 @@ impl BoundingBox3 {
 
 impl Default for BoundingBox3 {
     fn default() -> Self {
-        Self::EMPTY
+        Self::empty()
     }
 }
 
@@ -353,10 +355,12 @@ pub struct BoundingBox2 {
 
 impl BoundingBox2 {
     /// Empty bounding box
-    pub const EMPTY: Self = Self {
-        min: Point2::new(f64::INFINITY, f64::INFINITY),
-        max: Point2::new(f64::NEG_INFINITY, f64::NEG_INFINITY),
-    };
+    pub fn empty() -> Self {
+        Self {
+            min: Point2::new(f64::INFINITY, f64::INFINITY),
+            max: Point2::new(f64::NEG_INFINITY, f64::NEG_INFINITY),
+        }
+    }
 
     /// Create a new bounding box
     #[inline]
@@ -443,7 +447,7 @@ impl BoundingBox2 {
 
 impl Default for BoundingBox2 {
     fn default() -> Self {
-        Self::EMPTY
+        Self::empty()
     }
 }
 
@@ -453,7 +457,7 @@ mod tests {
 
     #[test]
     fn test_empty() {
-        let bbox = BoundingBox3::EMPTY;
+        let bbox = BoundingBox3::empty();
         assert!(bbox.is_empty());
     }
 

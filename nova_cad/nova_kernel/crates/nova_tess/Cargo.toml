@@ -1,19 +1,17 @@
 [package]
-name = "nova_ops"
+name = "nova_tess"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-description = "Boolean operations and features for Nova Kernel 3D"
 
 [dependencies]
 nova_math = { path = "../nova_math" }
 nova_geom = { path = "../nova_geom" }
 nova_topo = { path = "../nova_topo" }
-
-thiserror = { workspace = true }
+nalgebra = { workspace = true }
 rayon = { workspace = true }
 
 [dev-dependencies]
