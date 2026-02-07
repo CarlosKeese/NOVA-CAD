@@ -975,7 +975,7 @@ impl StepWriter {
             let voids: Vec<String> = shell_ids[1..].iter().map(|id| format!("#{}", id)).collect();
             output.push_str(&format!(
                 "#{}=BREP_WITH_VOIDS('Body',#{},({}));\n",
-                next_id, shell_ids[0], voids.join(","))
+                next_id, shell_ids[0], voids.join(",")
             ));
             *next_id += 1;
         }

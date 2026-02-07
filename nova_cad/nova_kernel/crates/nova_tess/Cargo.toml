@@ -13,6 +13,7 @@ nova_geom = { path = "../nova_geom" }
 nova_topo = { path = "../nova_topo" }
 nalgebra = { workspace = true }
 rayon = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }
