@@ -6,7 +6,8 @@ using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Platform;
 using Avalonia.Rendering;
-using Avalonia.Silk;
+using Avalonia.Interactivity;
+// Note: Avalonia.Silk integration requires Avalonia.Silk package or custom implementation
 using Silk.NET.OpenGL;
 using NovaCad.Core.Models;
 
@@ -32,8 +33,8 @@ namespace NovaCad.Viewport
             remove => RemoveHandler(EntityPickedEvent, value);
         }
 
-        public static readonly RoutedEvent<ViewportClickEventArgs> EntityPickedEvent =
-            RoutedEvent.Register<ViewportControl, ViewportClickEventArgs>(nameof(EntityPicked), RoutingStrategies.Bubble);
+        public static readonly RoutedEvent EntityPickedEvent =
+            RoutedEvent.Register<ViewportControl, RoutedEventArgs>(nameof(EntityPicked), RoutingStrategies.Bubble);
 
         public ViewportControl()
         {

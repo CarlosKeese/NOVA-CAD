@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Silk.NET.OpenGL;
+using NovaCad.Kernel;
 
 namespace NovaCad.Viewport
 {
@@ -181,34 +182,15 @@ namespace NovaCad.Viewport
         }
 
         /// <summary>
-        /// Create mesh from kernel body
+        /// Create mesh from kernel body handle
         /// </summary>
-        public static Mesh FromBody(NovaKernel.NovaBodyRef body, GL gl)
+        public static Mesh FromBody(NovaKernel.NovaHandle bodyHandle, GL gl)
         {
             var mesh = new Mesh();
             
-            // Get tessellated mesh from kernel
-            var kernelMesh = NovaKernel.TessellateBody(body);
-            if (kernelMesh == null) return mesh;
-
-            // Convert kernel mesh to viewport mesh
-            for (int i = 0; i < kernelMesh.VertexCount; i++)
-            {
-                var v = kernelMesh.GetVertex(i);
-                mesh.Vertices.Add(new Vertex
-                {
-                    Position = new Vector3(v.X, v.Y, v.Z),
-                    Normal = new Vector3(v.NX, v.NY, v.NZ),
-                    TexCoord = new Vector2(v.U, v.V)
-                });
-            }
-
-            for (int i = 0; i < kernelMesh.IndexCount; i++)
-            {
-                mesh.Indices.Add(kernelMesh.GetIndex(i));
-            }
-
-            mesh.EntityId = (uint)body.Handle;
+            // TODO: Implement tessellation using nova_tessellate_body from kernel
+            // For now, return empty mesh
+            mesh.EntityId = (uint)bodyHandle.Value;
             mesh.Initialize(gl);
 
             return mesh;
@@ -257,13 +239,13 @@ namespace NovaCad.Viewport
             // Indices
             for (uint i = 0; i < 6; i++)
             {
-                uint base = i * 4;
-                mesh.Indices.Add(base);
-                mesh.Indices.Add(base + 1);
-                mesh.Indices.Add(base + 2);
-                mesh.Indices.Add(base);
-                mesh.Indices.Add(base + 2);
-                mesh.Indices.Add(base + 3);
+                uint baseIndex = i * 4;
+                mesh.Indices.Add(baseIndex);
+                mesh.Indices.Add(baseIndex + 1);
+                mesh.Indices.Add(baseIndex + 2);
+                mesh.Indices.Add(baseIndex);
+                mesh.Indices.Add(baseIndex + 2);
+                mesh.Indices.Add(baseIndex + 3);
             }
 
             mesh.Initialize(gl);
