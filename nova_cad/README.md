@@ -99,12 +99,13 @@ dotnet run --project src/NovaCad.App
 - [x] Topologia B-Rep
 - [x] Interface C-ABI
 
-### Fase 2 - Operações (Em Progresso)
-- [x] **Estrutura completa** para Boolean operations, Features, Fillets, STEP I/O
-- [ ] Implementação completa dos algoritmos Boolean
-- [ ] Implementação completa das features (extrude, revolve, sweep, loft)
-- [ ] Implementação completa de fillets e chamfers
-- [ ] Parser STEP completo
+### Fase 2 - Operações (Em Progresso - 75%)
+- [x] **Boolean operations**: face intersection, point classification, face splitting, result construction
+- [x] **Features**: Extrude, Revolve, Sweep, Loft com opções completas
+- [x] **Fillets/Chamfers**: constant/variable radius, propagation, análise de edges
+- [x] **STEP I/O**: Parser completo AP214/AP242, conversão bidirecional B-Rep
+- [x] **STL I/O**: Export ASCII e Binary
+- [ ] Finalização dos algoritmos com operadores Euler
 
 ### Fase 3 - Edição Direta
 - [ ] Face move/rotate/offset

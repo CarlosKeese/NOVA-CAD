@@ -17,6 +17,7 @@ pub mod boolean;
 pub mod feature;
 pub mod fillet;
 pub mod error;
+pub mod split;
 
 pub use boolean::{BooleanOp, BooleanEngine};
 pub use feature::{FeatureOp, ExtrudeOptions, RevolveOptions, SweepOptions};

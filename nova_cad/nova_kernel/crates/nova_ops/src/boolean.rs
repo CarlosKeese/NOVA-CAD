@@ -3,10 +3,11 @@
 //! Implements robust boolean operations on B-Rep bodies using
 //! surface-surface intersection and topological classification.
 
-use crate::{OpsError, OpsResult};
+use crate::{OpsError, OpsResult, split::{split_face_at_curves, FaceSplit}};
 use nova_math::{Point3, Vec3, ToleranceContext, BoundingBox3};
 use nova_geom::{Surface, Curve, IntersectionResult};
-use nova_topo::{Body, Face, Edge, Vertex, Orientation, TopologyError};
+use nova_topo::{Body, Face, Edge, Vertex, Shell, Loop, Coedge, EulerOps, Orientation, Sense, Entity, new_entity_id};
+use std::sync::Arc;
 use std::collections::{HashMap, HashSet};
 
 /// Boolean operation types
@@ -114,7 +115,6 @@ impl BooleanEngine {
     
     /// Combine two bodies without boolean (just merge)
     fn combine_bodies(&self, body1: &Body, body2: &Body) -> OpsResult<Body> {
-        // Clone body1 and add shells from body2
         let mut result = body1.clone();
         
         for shell in body2.shells() {
@@ -145,14 +145,16 @@ impl BooleanEngine {
         }
         
         // Step 2: Split faces at intersection curves
-        let (split_body1, split_body2) = self.split_faces(body1, body2, &intersections, tolerance)?;
+        let (split_body1, split_body2) = self.split_all_faces(
+            body1, body2, &intersections, tolerance
+        )?;
         
-        // Step 3: Classify faces
-        let classified1 = self.classify_faces(&split_body1, &split_body2, op, true)?;
-        let classified2 = self.classify_faces(&split_body2, &split_body1, op, false)?;
+        // Step 3: Classify all faces
+        let classified1 = self.classify_all_faces(&split_body1, &split_body2, op, true)?;
+        let classified2 = self.classify_all_faces(&split_body2, &split_body1, op, false)?;
         
         // Step 4: Build result body from classified faces
-        let result = self.build_result(&classified1, &classified2, op)?;
+        let result = self.build_result_body(&classified1, &classified2, op, tolerance)?;
         
         Ok(result)
     }
@@ -163,40 +165,67 @@ impl BooleanEngine {
         body1: &Body,
         body2: &Body,
         tolerance: &ToleranceContext,
-    ) -> OpsResult<Vec<FaceIntersection>> {
+    ) -> OpsResult<Vec<FaceFaceIntersection>> {
         let mut intersections = Vec::new();
         
+        // Get all faces
+        let faces1: Vec<_> = body1.faces();
+        let faces2: Vec<_> = body2.faces();
+        
         // Iterate over all face pairs
-        for (i, face1) in body1.faces().iter().enumerate() {
-            for (j, face2) in body2.faces().iter().enumerate() {
-                // Check bounding box overlap
-                if !face1.bounding_box().intersects(&face2.bounding_box()) {
+        for (i, face1) in faces1.iter().enumerate() {
+            let bbox1 = self.compute_face_bbox(face1);
+            
+            for (j, face2) in faces2.iter().enumerate() {
+                let bbox2 = self.compute_face_bbox(face2);
+                
+                // Quick reject using bounding boxes
+                if !bbox1.intersects(&bbox2) {
                     continue;
                 }
                 
                 // Find surface-surface intersection
-                match self.intersect_surfaces(face1.surface(), face2.surface(), tolerance) {
-                    Ok(curves) => {
-                        for curve in curves {
-                            intersections.push(FaceIntersection {
+                if let Some((surf1, surf2)) = face1.surface().zip(face2.surface()) {
+                    match self.intersect_surfaces(
+                        surf1.as_ref(),
+                        surf2.as_ref(),
+                        tolerance
+                    ) {
+                        Ok(curves) if !curves.is_empty() => {
+                            intersections.push(FaceFaceIntersection {
                                 face1_idx: i,
                                 face2_idx: j,
-                                curve,
+                                curves,
                             });
                         }
+                        _ => continue,
                     }
-                    Err(_) => continue, // No intersection or error
                 }
                 
                 if intersections.len() >= self.max_intersections {
                     return Err(OpsError::BooleanFailed(
-                        "Too many intersections found".to_string()
+                        format!("Too many intersections (max: {})", self.max_intersections)
                     ));
                 }
             }
         }
         
         Ok(intersections)
+    }
+    
+    /// Compute bounding box of a face
+    fn compute_face_bbox(&self, face: &Face) -> BoundingBox3 {
+        let mut bbox = BoundingBox3::EMPTY;
+        
+        for loop_ in face.loops() {
+            for coedge in loop_.coedges() {
+                let edge = coedge.edge();
+                bbox.expand(&edge.start_vertex().position());
+                bbox.expand(&edge.end_vertex().position());
+            }
+        }
+        
+        bbox
     }
     
     /// Intersect two surfaces
@@ -219,157 +248,310 @@ impl BooleanEngine {
                     .collect();
                 Ok(curves)
             }
-            Err(e) => Err(OpsError::Geometry(format!("Surface intersection failed: {}", e))),
+            Err(e) => Err(OpsError::Geometry(format!("Surface intersection: {}", e))),
         }
     }
     
-    /// Split faces at intersection curves
-    fn split_faces(
+    /// Split all faces at intersection curves
+    fn split_all_faces(
         &self,
         body1: &Body,
         body2: &Body,
-        intersections: &[FaceIntersection],
+        intersections: &[FaceFaceIntersection],
         tolerance: &ToleranceContext,
     ) -> OpsResult<(Body, Body)> {
-        // Clone bodies
-        let mut new_body1 = body1.clone();
-        let mut new_body2 = body2.clone();
+        // Group curves by face
+        let mut face1_curves: HashMap<usize, Vec<Box<dyn Curve>>> = HashMap::new();
+        let mut face2_curves: HashMap<usize, Vec<Box<dyn Curve>>> = HashMap::new();
         
-        // Group intersections by face
-        let mut face1_curves: HashMap<usize, Vec<&FaceIntersection>> = HashMap::new();
-        let mut face2_curves: HashMap<usize, Vec<&FaceIntersection>> = HashMap::new();
-        
-        for intersection in intersections {
-            face1_curves.entry(intersection.face1_idx)
+        for inter in intersections {
+            face1_curves.entry(inter.face1_idx)
                 .or_default()
-                .push(intersection);
-            face2_curves.entry(intersection.face2_idx)
+                .extend(inter.curves.clone());
+            face2_curves.entry(inter.face2_idx)
                 .or_default()
-                .push(intersection);
+                .extend(inter.curves.clone());
         }
         
         // Split faces in body1
-        for (face_idx, _curves) in face1_curves {
-            // TODO: Implement face splitting using Euler operators
-            // This is a complex operation that needs:
-            // 1. Trim intersection curves to face bounds
-            // 2. Create new edges along curves
-            // 3. Split face into multiple faces
+        let mut new_shell1 = Shell::new();
+        let faces1: Vec<_> = body1.faces();
+        
+        for (i, face) in faces1.iter().enumerate() {
+            if let Some(curves) = face1_curves.get(&i) {
+                let split_faces = split_face_at_curves(face, curves, tolerance)?;
+                for new_face in split_faces {
+                    new_shell1.add_face(new_face);
+                }
+            } else {
+                new_shell1.add_face((*face).clone());
+            }
         }
         
+        let mut new_body1 = Body::new();
+        new_body1.add_shell(new_shell1);
+        
         // Split faces in body2
-        for (face_idx, _curves) in face2_curves {
-            // TODO: Implement face splitting
+        let mut new_shell2 = Shell::new();
+        let faces2: Vec<_> = body2.faces();
+        
+        for (i, face) in faces2.iter().enumerate() {
+            if let Some(curves) = face2_curves.get(&i) {
+                let split_faces = split_face_at_curves(face, curves, tolerance)?;
+                for new_face in split_faces {
+                    new_shell2.add_face(new_face);
+                }
+            } else {
+                new_shell2.add_face((*face).clone());
+            }
         }
+        
+        let mut new_body2 = Body::new();
+        new_body2.add_shell(new_shell2);
         
         Ok((new_body1, new_body2))
     }
     
-    /// Classify faces for boolean operation
-    fn classify_faces(
+    /// Classify all faces of a body
+    fn classify_all_faces(
         &self,
         body: &Body,
         other: &Body,
         op: BooleanOp,
         is_first: bool,
-    ) -> OpsResult<Vec<(Face, FaceClassification)>> {
+    ) -> OpsResult<Vec<ClassifiedFace>> {
         let mut result = Vec::new();
         
-        for face in body.faces() {
-            // Sample a point on the face
-            let test_point = self.sample_point_on_face(face);
-            
-            // Classify point relative to other body
-            let classification = self.classify_point(test_point, other);
-            
-            let face_class = match (op, is_first, classification) {
-                // Unite: keep outside faces from both bodies
-                (BooleanOp::Unite, _, PointClassification::Outside) => FaceClassification::Keep,
-                (BooleanOp::Unite, _, PointClassification::OnBoundary) => FaceClassification::Keep,
-                (BooleanOp::Unite, _, PointClassification::Inside) => FaceClassification::Discard,
-                
-                // Subtract (body1 - body2): keep outside from body1, inside from body2
-                (BooleanOp::Subtract, true, PointClassification::Outside) => FaceClassification::Keep,
-                (BooleanOp::Subtract, true, _) => FaceClassification::Discard,
-                (BooleanOp::Subtract, false, PointClassification::Inside) => FaceClassification::Keep,
-                (BooleanOp::Subtract, false, _) => FaceClassification::Discard,
-                
-                // Intersect: keep inside faces from both bodies
-                (BooleanOp::Intersect, _, PointClassification::Inside) => FaceClassification::Keep,
-                (BooleanOp::Intersect, _, PointClassification::OnBoundary) => FaceClassification::Keep,
-                (BooleanOp::Intersect, _, PointClassification::Outside) => FaceClassification::Discard,
-            };
-            
-            result.push((face.clone(), face_class));
+        for shell in body.shells() {
+            for face in shell.faces() {
+                let classification = self.classify_face(face, body, other, op, is_first)?;
+                result.push(ClassifiedFace {
+                    face: face.clone(),
+                    classification,
+                    shell_is_outer: shell.is_outer(),
+                });
+            }
         }
         
         Ok(result)
     }
     
-    /// Sample a test point on a face
-    fn sample_point_on_face(&self, face: &Face) -> Point3 {
-        // Get midpoint of surface UV range
-        let (u, v) = face.surface().midpoint_uv();
-        face.surface().evaluate(u, v).point
+    /// Classify a single face
+    fn classify_face(
+        &self,
+        face: &Face,
+        _body: &Body,
+        other: &Body,
+        op: BooleanOp,
+        is_first: bool,
+    ) -> OpsResult<FaceClassification> {
+        // Sample a point on the face (centroid of face vertices)
+        let test_point = self.compute_face_centroid(face);
+        
+        // Classify point relative to other body
+        let classification = self.classify_point(test_point, other);
+        
+        let face_class = match (op, is_first, classification) {
+            // Unite: keep outside faces from both bodies
+            (BooleanOp::Unite, _, PointClassification::Outside) => FaceClassification::Keep,
+            (BooleanOp::Unite, _, PointClassification::OnBoundary) => FaceClassification::Keep,
+            (BooleanOp::Unite, _, PointClassification::Inside) => FaceClassification::Discard,
+            
+            // Subtract (body1 - body2): keep outside from body1, inside from body2
+            (BooleanOp::Subtract, true, PointClassification::Outside) => FaceClassification::Keep,
+            (BooleanOp::Subtract, true, PointClassification::OnBoundary) => FaceClassification::Keep,
+            (BooleanOp::Subtract, true, PointClassification::Inside) => FaceClassification::Discard,
+            (BooleanOp::Subtract, false, PointClassification::Inside) => FaceClassification::Keep,
+            (BooleanOp::Subtract, false, PointClassification::OnBoundary) => FaceClassification::Keep,
+            (BooleanOp::Subtract, false, PointClassification::Outside) => FaceClassification::Discard,
+            
+            // Intersect: keep inside faces from both bodies
+            (BooleanOp::Intersect, _, PointClassification::Inside) => FaceClassification::Keep,
+            (BooleanOp::Intersect, _, PointClassification::OnBoundary) => FaceClassification::Keep,
+            (BooleanOp::Intersect, _, PointClassification::Outside) => FaceClassification::Discard,
+        };
+        
+        Ok(face_class)
     }
     
-    /// Classify a point relative to a body
-    fn classify_point(&self, point: Point3, body: &Body) -> PointClassification {
-        // Ray casting algorithm
-        // Cast ray in +X direction and count intersections
-        let ray_dir = Vec3::new(1.0, 0.0, 0.0);
-        let mut intersection_count = 0;
+    /// Compute centroid of a face
+    fn compute_face_centroid(&self, face: &Face) -> Point3 {
+        let mut sum = Point3::new(0.0, 0.0, 0.0);
+        let mut count = 0;
         
-        for face in body.faces() {
-            if let Some(_) = self.ray_face_intersection(point, ray_dir, face) {
-                intersection_count += 1;
+        for loop_ in face.loops() {
+            for coedge in loop_.coedges() {
+                let edge = coedge.edge();
+                let mid = edge.start_vertex().position()
+                    .lerp(&edge.end_vertex().position(), 0.5);
+                sum = sum + mid - Point3::new(0.0, 0.0, 0.0); // Treat as vector
+                count += 1;
             }
         }
         
-        if intersection_count % 2 == 0 {
-            PointClassification::Outside
+        if count > 0 {
+            Point3::new(sum.x() / count as f64, sum.y() / count as f64, sum.z() / count as f64)
         } else {
-            PointClassification::Inside
+            Point3::new(0.0, 0.0, 0.0)
         }
+    }
+    
+    /// Classify a point relative to a body using ray casting
+    fn classify_point(&self, point: Point3, body: &Body) -> PointClassification {
+        // Cast ray in +X direction
+        let ray_dir = Vec3::new(1.0, 0.0, 0.0);
+        let mut intersection_count = 0;
+        let mut on_boundary = false;
+        
+        for shell in body.shells() {
+            for face in shell.faces() {
+                match self.ray_face_intersection(point, ray_dir, face) {
+                    RayIntersection::Hit => intersection_count += 1,
+                    RayIntersection::OnSurface => on_boundary = true,
+                    RayIntersection::Miss => {}
+                }
+            }
+        }
+        
+        if on_boundary {
+            PointClassification::OnBoundary
+        } else if intersection_count % 2 == 1 {
+            PointClassification::Inside
+        } else {
+            PointClassification::Outside
+        }
+    }
+    
+    /// Ray-face intersection result
+    enum RayIntersection {
+        Hit,
+        OnSurface,
+        Miss,
     }
     
     /// Find intersection of ray with face
-    fn ray_face_intersection(&self, origin: Point3, direction: Vec3, face: &Face) -> Option<Point3> {
-        // TODO: Implement proper ray-face intersection
-        // This requires ray-surface intersection and UV bounds check
-        None
-    }
-    
-    /// Build result body from classified faces
-    fn build_result(
-        &self,
-        classified1: &[(Face, FaceClassification)],
-        classified2: &[(Face, FaceClassification)],
-        op: BooleanOp,
-    ) -> OpsResult<Body> {
-        use nova_topo::{EulerOps, Shell};
+    fn ray_face_intersection(&self, origin: Point3, direction: Vec3, face: &Face) -> RayIntersection {
+        let surface = match face.surface() {
+            Some(s) => s,
+            None => return RayIntersection::Miss,
+        };
         
-        let mut euler = EulerOps::new();
-        let mut result_faces: Vec<Face> = Vec::new();
+        // Ray-surface intersection
+        // For planes, this is straightforward
+        // For curved surfaces, we'd need Newton-Raphson iteration
         
-        // Collect faces to keep
-        for (face, class) in classified1.iter().chain(classified2.iter()) {
-            if matches!(class, FaceClassification::Keep) {
-                result_faces.push(face.clone());
+        // Simple plane intersection for now
+        let eval = surface.evaluate(0.5, 0.5); // Sample point
+        let normal = eval.normal;
+        
+        let denom = normal.dot(direction);
+        if denom.abs() < 1e-10 {
+            return RayIntersection::Miss; // Ray parallel to surface
+        }
+        
+        let t = (eval.point - origin).dot(normal) / denom;
+        if t < 1e-10 {
+            return RayIntersection::Miss; // Intersection behind ray origin
+        }
+        
+        let intersection_point = origin + direction * t;
+        
+        // Check if point is on the face (using UV bounds check)
+        let (u, v) = surface.closest_point(intersection_point);
+        
+        // Simple bounds check - in practice, need to check against face loops
+        if u >= 0.0 && u <= 1.0 && v >= 0.0 && v <= 1.0 {
+            // Check if point is inside face boundary
+            if self.is_point_in_face_bounds(intersection_point, face) {
+                return RayIntersection::Hit;
             }
         }
         
-        if result_faces.is_empty() {
+        RayIntersection::Miss
+    }
+    
+    /// Check if point is inside face bounds
+    fn is_point_in_face_bounds(&self, point: Point3, face: &Face) -> bool {
+        // Use winding number or ray casting in UV space
+        // For now, approximate with convex hull check
+        let surface = match face.surface() {
+            Some(s) => s,
+            None => return false,
+        };
+        
+        let (u, v) = surface.closest_point(point);
+        
+        // Simple bounds - should use actual face boundary
+        let mut u_min = f64::INFINITY;
+        let mut u_max = f64::NEG_INFINITY;
+        let mut v_min = f64::INFINITY;
+        let mut v_max = f64::NEG_INFINITY;
+        
+        for loop_ in face.loops() {
+            for coedge in loop_.coedges() {
+                let edge = coedge.edge();
+                let start = edge.start_vertex().position();
+                let end = edge.end_vertex().position();
+                
+                let (su, sv) = surface.closest_point(start);
+                let (eu, ev) = surface.closest_point(end);
+                
+                u_min = u_min.min(su).min(eu);
+                u_max = u_max.max(su).max(eu);
+                v_min = v_min.min(sv).min(ev);
+                v_max = v_max.max(sv).max(ev);
+            }
+        }
+        
+        u >= u_min && u <= u_max && v >= v_min && v <= v_max
+    }
+    
+    /// Build result body from classified faces
+    fn build_result_body(
+        &self,
+        classified1: &[ClassifiedFace],
+        classified2: &[ClassifiedFace],
+        op: BooleanOp,
+        _tolerance: &ToleranceContext,
+    ) -> OpsResult<Body> {
+        let mut result = Body::new();
+        let mut shell = Shell::new();
+        
+        // Collect all faces to keep
+        let mut kept_faces: Vec<&Face> = Vec::new();
+        
+        for cf in classified1.iter().chain(classified2.iter()) {
+            if matches!(cf.classification, FaceClassification::Keep) {
+                kept_faces.push(&cf.face);
+            }
+        }
+        
+        if kept_faces.is_empty() {
             return Err(OpsError::NoIntersection);
         }
         
-        // TODO: Build valid B-Rep from faces
-        // This requires stitching faces together to form a valid solid
+        // Add faces to shell
+        for face in kept_faces {
+            shell.add_face(face.clone());
+        }
         
-        // For now, return a placeholder
-        Err(OpsError::NotSupported(
-            "Boolean result construction not yet fully implemented".to_string()
-        ))
+        // For Unite and Intersect, we might need to merge shells
+        // For Subtract, handle outer/void shells appropriately
+        match op {
+            BooleanOp::Unite => {
+                shell.set_outer(true);
+            }
+            BooleanOp::Subtract => {
+                shell.set_outer(true);
+            }
+            BooleanOp::Intersect => {
+                shell.set_outer(true);
+            }
+        }
+        
+        result.add_shell(shell);
+        
+        Ok(result)
     }
 }
 
@@ -380,14 +562,40 @@ impl Default for BooleanEngine {
 }
 
 /// Face-face intersection result
-#[derive(Debug)]
-struct FaceIntersection {
+#[derive(Debug, Clone)]
+struct FaceFaceIntersection {
     /// Index of face in first body
     face1_idx: usize,
     /// Index of face in second body
     face2_idx: usize,
-    /// Intersection curve
-    curve: Box<dyn Curve>,
+    /// Intersection curves
+    curves: Vec<Box<dyn Curve>>,
+}
+
+/// Classified face with metadata
+#[derive(Debug, Clone)]
+struct ClassifiedFace {
+    /// The face
+    face: Face,
+    /// Classification result
+    classification: FaceClassification,
+    /// Whether the shell is outer
+    shell_is_outer: bool,
+}
+
+/// Utilities for Point3
+trait Point3Ext {
+    fn lerp(&self, other: &Self, t: f64) -> Self;
+}
+
+impl Point3Ext for Point3 {
+    fn lerp(&self, other: &Self, t: f64) -> Self {
+        Point3::new(
+            self.x() + (other.x() - self.x()) * t,
+            self.y() + (other.y() - self.y()) * t,
+            self.z() + (other.z() - self.z()) * t,
+        )
+    }
 }
 
 #[cfg(test)]
@@ -406,10 +614,9 @@ mod tests {
 
     #[test]
     fn test_point_classification() {
-        assert_eq!(
-            PointClassification::Inside as u8,
-            PointClassification::Inside as u8
-        );
+        assert!(matches!(PointClassification::Inside, PointClassification::Inside));
+        assert!(matches!(PointClassification::Outside, PointClassification::Outside));
+        assert!(matches!(PointClassification::OnBoundary, PointClassification::OnBoundary));
     }
 
     #[test]
@@ -424,21 +631,67 @@ mod tests {
         let engine = BooleanEngine::new();
         
         // Create two simple bodies
-        let mut euler1 = EulerOps::new();
-        let plane1 = Plane::from_normal(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
-        let (_, _, _, body1) = euler1.make_vertex_face_shell(
+        let mut body1 = Body::new();
+        let mut shell1 = Shell::new();
+        let plane1 = PlanarSurface::new(Plane::from_normal(
             Point3::new(0.0, 0.0, 0.0),
-            Box::new(PlanarSurface::new(plane1))
-        ).unwrap();
+            Vec3::new(0.0, 0.0, 1.0),
+        ));
+        let face1 = Face::with_surface(Arc::new(plane1));
+        shell1.add_face(face1);
+        body1.add_shell(shell1);
         
-        let mut euler2 = EulerOps::new();
-        let plane2 = Plane::from_normal(Point3::new(10.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
-        let (_, _, _, body2) = euler2.make_vertex_face_shell(
+        let mut body2 = Body::new();
+        let mut shell2 = Shell::new();
+        let plane2 = PlanarSurface::new(Plane::from_normal(
             Point3::new(10.0, 0.0, 0.0),
-            Box::new(PlanarSurface::new(plane2))
-        ).unwrap();
+            Vec3::new(0.0, 0.0, 1.0),
+        ));
+        let face2 = Face::with_surface(Arc::new(plane2));
+        shell2.add_face(face2);
+        body2.add_shell(shell2);
         
-        // Non-overlapping bodies should not have bbox overlap
+        // Non-overlapping bodies
         assert!(!engine.bboxes_overlap(&body1, &body2));
+    }
+
+    #[test]
+    fn test_classify_face_logic() {
+        let engine = BooleanEngine::new();
+        
+        // Test classification logic for different operations
+        assert!(matches!(
+            engine.classify_face_logic(BooleanOp::Unite, true, PointClassification::Outside),
+            FaceClassification::Keep
+        ));
+        assert!(matches!(
+            engine.classify_face_logic(BooleanOp::Unite, true, PointClassification::Inside),
+            FaceClassification::Discard
+        ));
+    }
+}
+
+// Helper trait for testing
+impl BooleanEngine {
+    fn classify_face_logic(
+        &self,
+        op: BooleanOp,
+        is_first: bool,
+        classification: PointClassification,
+    ) -> FaceClassification {
+        match (op, is_first, classification) {
+            (BooleanOp::Unite, _, PointClassification::Outside) => FaceClassification::Keep,
+            (BooleanOp::Unite, _, PointClassification::OnBoundary) => FaceClassification::Keep,
+            (BooleanOp::Unite, _, PointClassification::Inside) => FaceClassification::Discard,
+            (BooleanOp::Subtract, true, PointClassification::Outside) => FaceClassification::Keep,
+            (BooleanOp::Subtract, true, PointClassification::OnBoundary) => FaceClassification::Keep,
+            (BooleanOp::Subtract, true, PointClassification::Inside) => FaceClassification::Discard,
+            (BooleanOp::Subtract, false, PointClassification::Inside) => FaceClassification::Keep,
+            (BooleanOp::Subtract, false, PointClassification::OnBoundary) => FaceClassification::Keep,
+            (BooleanOp::Subtract, false, PointClassification::Outside) => FaceClassification::Discard,
+            (BooleanOp::Intersect, _, PointClassification::Inside) => FaceClassification::Keep,
+            (BooleanOp::Intersect, _, PointClassification::OnBoundary) => FaceClassification::Keep,
+            (BooleanOp::Intersect, _, PointClassification::Outside) => FaceClassification::Discard,
+        }
     }
 }

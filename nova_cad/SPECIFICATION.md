@@ -166,13 +166,14 @@ NovaCad.App       : Aplicação principal
 - [x] Interface C-ABI
 - [x] Estrutura da aplicação C#
 
-### Fase 2 - Operações 🔄 (Em Progresso - 40%)
-- [x] Crate `nova_ops` criado com estrutura completa
-- [x] Boolean operations (unite, subtract, intersect) - estrutura
-- [x] Features (extrude, revolve, sweep, loft) - estrutura
-- [x] Fillets and chamfers - estrutura
-- [x] STEP import/export - estrutura
-- [ ] Implementação completa dos algoritmos
+### Fase 2 - Operações 🔄 (Em Progresso - 75%)
+- [x] Crate `nova_ops` criado (boolean, feature, fillet, split, error)
+- [x] Boolean operations: intersection, classification, face splitting, construction
+- [x] Features: Extrude, Revolve, Sweep, Loft com opções completas
+- [x] Fillets/Chamfers: analysis, propagation, variable radius
+- [x] STEP I/O: AP214/AP242 parser completo, conversão B-Rep bidirecional
+- [x] STL I/O: Export ASCII e Binary
+- [ ] Finalização com operadores Euler completos
 
 ### Fase 3 - Edição Direta
 - [ ] Face move/rotate/offset

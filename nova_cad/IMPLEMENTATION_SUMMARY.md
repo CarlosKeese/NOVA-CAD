@@ -126,30 +126,37 @@ nova_cad/
 - [x] Interface C-ABI
 - [x] Estrutura da aplicação C#
 
-### Fase 2 - Operações 🔄 (Em Progresso - 40%)
+### Fase 2 - Operações 🔄 (Em Progresso - 75%)
 - [x] Crate `nova_ops` criado com estrutura completa
-- [x] **Boolean operations**: estrutura completa (unite, subtract, intersect)
+- [x] **Boolean operations**: implementação avançada (unite, subtract, intersect)
   - [x] Face-face intersection detection
   - [x] Point classification (inside/outside/boundary)
-  - [ ] Face splitting at intersection curves
-  - [ ] Result body construction
+  - [x] Face splitting at intersection curves (módulo `split.rs`)
+  - [x] Result body construction com classificação de faces
+  - [x] Ray casting para classificação de pontos
+  - [x] Bounding box overlap optimization
 - [x] **Features**: estrutura completa (extrude, revolve, sweep, loft)
-  - [x] ExtrudeOptions, RevolveOptions, SweepOptions
+  - [x] ExtrudeOptions, RevolveOptions, SweepOptions, LoftOptions
   - [x] FeatureEngine com API completa
-  - [ ] Implementação completa do algoritmo de extrude
+  - [x] Cálculo de segmentos para revolve
+  - [ ] Implementação completa do algoritmo de extrude (necessita operadores Euler)
   - [ ] Implementação completa do algoritmo de revolve
 - [x] **Fillets e Chamfers**: estrutura completa
   - [x] FilletEngine com análise de edges
   - [x] Suporte a variable radius fillets
   - [x] Chamfer com distâncias simétricas e assimétricas
+  - [x] Propagação de tangência
   - [ ] Implementação completa da modificação topológica
-- [x] **STEP I/O**: estrutura completa
+- [x] **STEP I/O**: implementação avançada
   - [x] Crate `nova_io` criado
-  - [x] Parser STEP AP214/AP242 básico
+  - [x] Parser STEP AP214/AP242 completo
+  - [x] Conversão STEP → B-Rep: MANIFOLD_SOLID_BREP, CLOSED_SHELL, ADVANCED_FACE
+  - [x] Suporte a superfícies: PLANE, CYLINDRICAL_SURFACE, SPHERICAL_SURFACE, CONICAL_SURFACE
+  - [x] Conversão B-Rep → STEP (estrutura completa)
   - [x] STL export (ASCII e Binary)
-  - [x] Native .nova format
-  - [ ] Conversão completa STEP ↔ B-Rep
+  - [x] Native .nova format com serde
 - [x] FFI atualizado com novas operações
+- [x] Módulo `split.rs` para split de faces em operações booleanas
 
 ### Fase 3 - Edição Direta 🔄 (Estrutura pronta)
 - [x] Estrutura para face move

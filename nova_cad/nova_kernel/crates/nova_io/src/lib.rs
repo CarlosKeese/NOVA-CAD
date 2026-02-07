@@ -18,10 +18,10 @@ pub mod iges;
 pub mod stl;
 pub mod nova_format;
 
-pub use step::{StepReader, StepWriter, StepError};
+pub use step::{StepReader, StepWriter, StepSchema, StepError, StepEntity, StepAttribute};
 pub use iges::{IgesReader, IgesWriter};
-pub use stl::{StlWriter, StlFormat};
-pub use nova_format::{NovaReader, NovaWriter};
+pub use stl::{StlWriter, StlFormat, StlTriangle};
+pub use nova_format::{NovaReader, NovaWriter, NovaFile, NovaMetadata};
 
 /// I/O error types
 #[derive(Debug, Error, Clone)]
