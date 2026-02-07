@@ -1,0 +1,19 @@
+[package]
+name = "nova_topo"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "B-Rep topology engine for Nova Kernel 3D"
+
+[dependencies]
+nova_math = { path = "../nova_math" }
+nova_geom = { path = "../nova_geom" }
+thiserror.workspace = true
+serde.workspace = true
+
+[lib]
+name = "nova_topo"
+path = "src/lib.rs"

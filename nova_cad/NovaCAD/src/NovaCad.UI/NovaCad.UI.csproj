@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>12.0</LangVersion>
+    <RootNamespace>NovaCad.UI</RootNamespace>
+    <AssemblyName>NovaCad.UI</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NovaCad.Core\NovaCad.Core.csproj" />
+    <ProjectReference Include="..\NovaCad.Kernel\NovaCad.Kernel.csproj" />
+    <ProjectReference Include="..\NovaCad.Viewport\NovaCad.Viewport.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.0.7" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.0.7" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.0.7" />
+    <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.0.7" />
+    <PackageReference Include="Dock.Avalonia" Version="11.0.0" />
+    <PackageReference Include="Dock.Model" Version="11.0.0" />
+    <PackageReference Include="Dock.Model.Mvvm" Version="11.0.0" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
+  </ItemGroup>
+
+</Project>

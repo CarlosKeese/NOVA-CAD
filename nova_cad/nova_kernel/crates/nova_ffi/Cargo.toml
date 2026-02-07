@@ -1,0 +1,24 @@
+[package]
+name = "nova_ffi"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "C-ABI FFI layer for Nova Kernel 3D"
+
+[lib]
+name = "nova_ffi"
+crate-type = ["cdylib", "staticlib"]
+path = "src/lib.rs"
+
+[dependencies]
+nova_math = { path = "../nova_math" }
+nova_geom = { path = "../nova_geom" }
+nova_topo = { path = "../nova_topo" }
+libc = "0.2"
+once_cell = "1.19"
+
+[build-dependencies]
+cbindgen = "0.27"

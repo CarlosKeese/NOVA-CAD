@@ -1,0 +1,227 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:NovaCad.App.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
+        x:Class="NovaCad.App.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="{Binding Title}"
+        Width="1200" Height="800"
+        MinWidth="800" MinHeight="600">
+
+    <Design.DataContext>
+        <vm:MainWindowViewModel />
+    </Design.DataContext>
+
+    <Window.Styles>
+        <Style Selector="MenuItem">
+            <Setter Property="Padding" Value="12,4" />
+        </Style>
+    </Window.Styles>
+
+    <DockPanel>
+        <!-- Menu Bar -->
+        <Menu DockPanel.Dock="Top" Background="{StaticResource RibbonBackgroundBrush}">
+            <MenuItem Header="_File">
+                <MenuItem Header="_New" Command="{Binding NewDocumentCommand}" InputGesture="Ctrl+N" />
+                <MenuItem Header="_Open..." Command="{Binding OpenDocumentCommand}" InputGesture="Ctrl+O" />
+                <Separator />
+                <MenuItem Header="_Save" Command="{Binding SaveDocumentCommand}" InputGesture="Ctrl+S" />
+                <MenuItem Header="Save _As..." Command="{Binding SaveDocumentAsCommand}" InputGesture="Ctrl+Shift+S" />
+                <Separator />
+                <MenuItem Header="E_xit" Command="{Binding ExitCommand}" InputGesture="Alt+F4" />
+            </MenuItem>
+            <MenuItem Header="_Edit">
+                <MenuItem Header="_Undo" Command="{Binding UndoCommand}" InputGesture="Ctrl+Z" />
+                <MenuItem Header="_Redo" Command="{Binding RedoCommand}" InputGesture="Ctrl+Y" />
+            </MenuItem>
+            <MenuItem Header="_View">
+                <MenuItem Header="_Front" Command="{Binding SetViewFrontCommand}" />
+                <MenuItem Header="_Top" Command="{Binding SetViewTopCommand}" />
+                <MenuItem Header="_Right" Command="{Binding SetViewRightCommand}" />
+                <MenuItem Header="_Isometric" Command="{Binding SetViewIsoCommand}" />
+                <Separator />
+                <MenuItem Header="_Fit All" Command="{Binding FitAllCommand}" InputGesture="F" />
+                <Separator />
+                <MenuItem Header="_Shaded" Command="{Binding ToggleShadedModeCommand}" />
+                <MenuItem Header="Shaded with _Edges" Command="{Binding ToggleShadedWithEdgesModeCommand}" />
+                <MenuItem Header="_Wireframe" Command="{Binding ToggleWireframeModeCommand}" />
+            </MenuItem>
+            <MenuItem Header="_Create">
+                <MenuItem Header="_Box" Command="{Binding CreateBoxCommand}" />
+                <MenuItem Header="_Cylinder" Command="{Binding CreateCylinderCommand}" />
+                <MenuItem Header="_Sphere" Command="{Binding CreateSphereCommand}" />
+            </MenuItem>
+            <MenuItem Header="_Help">
+                <MenuItem Header="_About Nova CAD" Command="{Binding ShowAboutCommand}" />
+            </MenuItem>
+        </Menu>
+
+        <!-- Toolbar -->
+        <ToolBarTray DockPanel.Dock="Top" Background="{StaticResource RibbonBackgroundBrush}">
+            <ToolBar>
+                <Button Command="{Binding NewDocumentCommand}" ToolTip.Tip="New (Ctrl+N)">
+                    <PathIcon Data="M4,4 H20 V20 H4 Z M6,6 V18 H18 V6 Z" />
+                </Button>
+                <Button Command="{Binding OpenDocumentCommand}" ToolTip.Tip="Open (Ctrl+O)">
+                    <PathIcon Data="M4,4 H10 L12,6 H20 V18 H4 Z" />
+                </Button>
+                <Button Command="{Binding SaveDocumentCommand}" ToolTip.Tip="Save (Ctrl+S)">
+                    <PathIcon Data="M4,4 H16 L18,6 V20 H4 Z M6,6 V10 H14 V6 Z" />
+                </Button>
+            </ToolBar>
+            <ToolBar>
+                <Button Command="{Binding UndoCommand}" ToolTip.Tip="Undo (Ctrl+Z)">
+                    <PathIcon Data="M12,5 V9 L4,7 Z M4,7 L12,5 V9 Z" />
+                </Button>
+                <Button Command="{Binding RedoCommand}" ToolTip.Tip="Redo (Ctrl+Y)">
+                    <PathIcon Data="M12,5 V9 L20,7 Z" />
+                </Button>
+            </ToolBar>
+            <ToolBar>
+                <Button Command="{Binding CreateBoxCommand}" ToolTip.Tip="Create Box">
+                    <PathIcon Data="M2,2 H22 V22 H2 Z M4,4 V20 H20 V4 Z" />
+                </Button>
+                <Button Command="{Binding CreateCylinderCommand}" ToolTip.Tip="Create Cylinder">
+                    <Ellipse Width="16" Height="16" Fill="White" Stroke="Gray" />
+                </Button>
+                <Button Command="{Binding CreateSphereCommand}" ToolTip.Tip="Create Sphere">
+                    <Ellipse Width="16" Height="16" Fill="White" Stroke="Gray" />
+                </Button>
+            </ToolBar>
+            <ToolBar>
+                <Button Command="{Binding FitAllCommand}" ToolTip.Tip="Fit All (F)">
+                    <PathIcon Data="M4,4 H8 V6 H6 V8 H4 Z M16,4 V8 H14 V6 H12 V4 Z M4,16 V20 H8 V18 H6 V16 Z M16,16 H14 V18 H12 V20 H16 Z" />
+                </Button>
+                <Button Command="{Binding SetViewFrontCommand}" ToolTip.Tip="Front View">
+                    <TextBlock Text="Fr" FontSize="10" />
+                </Button>
+                <Button Command="{Binding SetViewTopCommand}" ToolTip.Tip="Top View">
+                    <TextBlock Text="To" FontSize="10" />
+                </Button>
+                <Button Command="{Binding SetViewIsoCommand}" ToolTip.Tip="Isometric View">
+                    <TextBlock Text="Iso" FontSize="10" />
+                </Button>
+            </ToolBar>
+        </ToolBarTray>
+
+        <!-- Main Content -->
+        <Grid ColumnDefinitions="250,*,280">
+            <!-- Left Panel: Model Tree -->
+            <Border Grid.Column="0" 
+                    Background="{StaticResource PanelBackgroundBrush}" 
+                    BorderBrush="#3C3C3C" 
+                    BorderThickness="0,0,1,0">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" 
+                               Text="Model Tree" 
+                               FontWeight="Bold" 
+                               Padding="8,4"
+                               Background="{StaticResource RibbonBackgroundBrush}" />
+                    <TreeView Classes="ModelTree" 
+                              ItemsSource="{Binding CurrentDocument.Bodies}"
+                              Margin="4">
+                        <TreeView.ItemTemplate>
+                            <TreeDataTemplate DataType="models:NovaBodyRef">
+                                <StackPanel Orientation="Horizontal">
+                                    <CheckBox IsChecked="{Binding IsVisible}" Margin="0,0,4,0" />
+                                    <TextBlock Text="{Binding Name}" />
+                                </StackPanel>
+                            </TreeDataTemplate>
+                        </TreeView.ItemTemplate>
+                    </TreeView>
+                </DockPanel>
+            </Border>
+
+            <!-- Center: Viewport -->
+            <Border Grid.Column="1" 
+                    Classes="ViewportPanel"
+                    Background="{StaticResource ViewportBackgroundBrush}">
+                <Grid>
+                    <!-- 3D Viewport placeholder -->
+                    <TextBlock Text="3D Viewport" 
+                               HorizontalAlignment="Center" 
+                               VerticalAlignment="Center"
+                               Foreground="Gray"
+                               FontSize="24" />
+                    
+                    <!-- Render mode indicator -->
+                    <Border HorizontalAlignment="Left" 
+                            VerticalAlignment="Top" 
+                            Margin="8"
+                            Background="#80000000"
+                            CornerRadius="4"
+                            Padding="8,4">
+                        <TextBlock Text="{Binding ViewportViewModel.RenderMode}" 
+                                   Foreground="White"
+                                   FontSize="12" />
+                    </Border>
+                    
+                    <!-- Navigation info -->
+                    <Border HorizontalAlignment="Right" 
+                            VerticalAlignment="Bottom" 
+                            Margin="8"
+                            Background="#80000000"
+                            CornerRadius="4"
+                            Padding="8,4">
+                        <StackPanel>
+                            <TextBlock Text="LMB: Select" Foreground="White" FontSize="10" />
+                            <TextBlock Text="MMB: Orbit" Foreground="White" FontSize="10" />
+                            <TextBlock Text="Shift+MMB: Pan" Foreground="White" FontSize="10" />
+                            <TextBlock Text="Scroll: Zoom" Foreground="White" FontSize="10" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- Right Panel: Properties -->
+            <Border Grid.Column="2" 
+                    Classes="PropertyPanel"
+                    Background="{StaticResource PanelBackgroundBrush}" 
+                    BorderBrush="#3C3C3C" 
+                    BorderThickness="1,0,0,0">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" 
+                               Text="Properties" 
+                               FontWeight="Bold" 
+                               Padding="8,4"
+                               Background="{StaticResource RibbonBackgroundBrush}" />
+                    <ScrollViewer>
+                        <StackPanel Margin="8">
+                            <TextBlock Text="No selection" 
+                                       Foreground="Gray" 
+                                       HorizontalAlignment="Center"
+                                       Margin="0,20" />
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+        </Grid>
+
+        <!-- Status Bar -->
+        <Border DockPanel.Dock="Bottom" 
+                Background="{StaticResource RibbonBackgroundBrush}" 
+                Height="24">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                <TextBlock Grid.Column="0" 
+                           Text="{Binding StatusMessage}" 
+                           VerticalAlignment="Center"
+                           Margin="8,0" />
+                <TextBlock Grid.Column="1" 
+                           Text="{Binding CurrentDocument.Bodies.Count, StringFormat='{}{0} bodies'}" 
+                           VerticalAlignment="Center"
+                           Margin="8,0" />
+                <TextBlock Grid.Column="2" 
+                           Text="mm" 
+                           VerticalAlignment="Center"
+                           Margin="8,0" />
+                <TextBlock Grid.Column="3" 
+                           Text="Ready" 
+                           VerticalAlignment="Center"
+                           Margin="8,0" />
+            </Grid>
+        </Border>
+    </DockPanel>
+
+</Window>

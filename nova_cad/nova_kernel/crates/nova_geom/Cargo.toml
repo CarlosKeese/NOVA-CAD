@@ -1,0 +1,23 @@
+[package]
+name = "nova_geom"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Geometry engine for Nova Kernel 3D - curves and surfaces"
+
+[dependencies]
+nova_math = { path = "../nova_math" }
+nalgebra.workspace = true
+num-traits.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+approx = "0.5"
+
+[lib]
+name = "nova_geom"
+path = "src/lib.rs"

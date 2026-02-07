@@ -1,0 +1,45 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="NovaCad.App.App"
+             RequestedThemeVariant="Dark">
+
+    <Application.Styles>
+        <FluentTheme />
+        
+        <!-- Custom styles for Nova CAD -->
+        <Style Selector="Button.RibbonButton">
+            <Setter Property="Width" Value="48" />
+            <Setter Property="Height" Value="48" />
+            <Setter Property="Margin" Value="2" />
+            <Setter Property="Padding" Value="4" />
+        </Style>
+        
+        <Style Selector="Panel.ViewportPanel">
+            <Setter Property="Background" Value="#2D2D30" />
+        </Style>
+        
+        <Style Selector="TreeView.ModelTree">
+            <Setter Property="Background" Value="#252526" />
+        </Style>
+        
+        <Style Selector="Panel.PropertyPanel">
+            <Setter Property="Background" Value="#252526" />
+        </Style>
+    </Application.Styles>
+
+    <Application.Resources>
+        <!-- Colors -->
+        <Color x:Key="ViewportBackground">#2D2D30</Color>
+        <Color x:Key="PanelBackground">#252526</Color>
+        <Color x:Key="RibbonBackground">#3C3C3C</Color>
+        <Color x:Key="SelectedFace">#4FC3F7</Color>
+        <Color x:Key="SelectedEdge">#FF9800</Color>
+        <Color x:Key="Highlight">#E0E0E0</Color>
+        
+        <!-- Brushes -->
+        <SolidColorBrush x:Key="ViewportBackgroundBrush" Color="{StaticResource ViewportBackground}" />
+        <SolidColorBrush x:Key="PanelBackgroundBrush" Color="{StaticResource PanelBackground}" />
+        <SolidColorBrush x:Key="RibbonBackgroundBrush" Color="{StaticResource RibbonBackground}" />
+    </Application.Resources>
+
+</Application>

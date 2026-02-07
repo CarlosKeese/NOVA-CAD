@@ -1,0 +1,48 @@
+[workspace]
+members = [
+    "crates/nova_math",
+    "crates/nova_geom",
+    "crates/nova_topo",
+    "crates/nova_ops",
+    "crates/nova_sync",
+    "crates/nova_tess",
+    "crates/nova_io",
+    "crates/nova_check",
+    "crates/nova_ffi",
+    "crates/nova_kernel",
+    "crates/nova_bench",
+    "crates/nova_test",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Nova CAD Team"]
+license = "LGPL-2.1-or-later"
+repository = "https://github.com/nova-cad/nova-kernel"
+rust-version = "1.75"
+
+[workspace.dependencies]
+nalgebra = { version = "0.33", features = ["serde"] }
+num-traits = "0.2"
+thiserror = "2.0"
+serde = { version = "1.0", features = ["derive"] }
+flatbuffers = "24.0"
+rayon = "1.10"
+criterion = "0.5"
+proptest = "1.5"
+
+# Profile configurations
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+
+[profile.dev]
+opt-level = 1
+
+[profile.bench]
+inherits = "release"
+debug = true
