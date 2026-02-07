@@ -356,6 +356,19 @@ impl CircularArc {
         Self::new(center, radius, normal, start_vector, std::f64::consts::TAU)
     }
 
+    /// Create a bounded arc from start and end angles
+    pub fn bounded(
+        center: Point3,
+        radius: f64,
+        normal: Vec3,
+        ref_direction: Vec3,
+        start_angle: f64,
+        end_angle: f64,
+    ) -> GeomResult<Self> {
+        let sweep_angle = end_angle - start_angle;
+        Self::new(center, radius, normal, ref_direction, sweep_angle)
+    }
+
     /// Create from three points on the arc
     pub fn from_three_points(start: &Point3, mid: &Point3, end: &Point3) -> GeomResult<Self> {
         // Compute center from three points

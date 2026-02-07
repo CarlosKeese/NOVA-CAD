@@ -246,10 +246,46 @@ impl Point4 {
         }
     }
 
+    /// X coordinate
+    #[inline]
+    pub fn x(&self) -> f64 {
+        self.inner.x
+    }
+
+    /// Y coordinate
+    #[inline]
+    pub fn y(&self) -> f64 {
+        self.inner.y
+    }
+
+    /// Z coordinate
+    #[inline]
+    pub fn z(&self) -> f64 {
+        self.inner.z
+    }
+
+    /// W coordinate (homogeneous)
+    #[inline]
+    pub fn w(&self) -> f64 {
+        self.inner.w
+    }
+
     /// Project to 3D (divide by w)
     #[inline]
     pub fn to_point3(&self) -> Point3 {
         Point3::from_nalgebra(self.inner.xyz() / self.inner.w)
+    }
+
+    /// Convert from nalgebra
+    #[inline]
+    pub fn from_nalgebra(p: na::Point4<f64>) -> Self {
+        Self { inner: p }
+    }
+
+    /// Convert to nalgebra
+    #[inline]
+    pub fn to_nalgebra(&self) -> na::Point4<f64> {
+        self.inner
     }
 }
 

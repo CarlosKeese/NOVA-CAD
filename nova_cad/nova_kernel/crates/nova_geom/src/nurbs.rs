@@ -226,13 +226,13 @@ impl Curve for NurbsCurve {
             1 => {
                 let p1 = self.evaluate(t + eps);
                 let p0 = self.evaluate(t - eps);
-                (p1 - p0) / (2.0 * eps)
+                (p1.to_vector() - p0.to_vector()) / (2.0 * eps)
             }
             2 => {
                 let p1 = self.evaluate(t + eps);
                 let p0 = self.evaluate(t);
                 let p_1 = self.evaluate(t - eps);
-                (p1 - p0 * 2.0 + p_1) / (eps * eps)
+                (p1.to_vector() - p0.to_vector() * 2.0 + p_1.to_vector()) / (eps * eps)
             }
             _ => Vec3::ZERO,
         }
@@ -627,14 +627,14 @@ impl Surface for NurbsSurface {
             let p1 = self.evaluate(u + eps, v);
             let p0 = self.evaluate(u, v);
             let p_1 = self.evaluate(u - eps, v);
-            (p1 - p0 * 2.0 + p_1) / (eps * eps)
+            (p1.to_vector() - p0.to_vector() * 2.0 + p_1.to_vector()) / (eps * eps)
         };
         
         let dvv = {
             let p1 = self.evaluate(u, v + eps);
             let p0 = self.evaluate(u, v);
             let p_1 = self.evaluate(u, v - eps);
-            (p1 - p0 * 2.0 + p_1) / (eps * eps)
+            (p1.to_vector() - p0.to_vector() * 2.0 + p_1.to_vector()) / (eps * eps)
         };
         
         // Approximate curvatures

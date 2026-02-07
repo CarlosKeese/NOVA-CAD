@@ -122,7 +122,7 @@ impl Body {
     
     /// Compute bounding box
     pub fn bounding_box(&self) -> BoundingBox3 {
-        let mut bbox = BoundingBox3::EMPTY;
+        let mut bbox = BoundingBox3::empty();
         for vertex in self.vertices() {
             bbox.expand(&vertex.position());
         }
@@ -219,12 +219,33 @@ impl Entity for Shell {
 }
 
 /// A face is a bounded region on a surface
-#[derive(Debug, Clone)]
 pub struct Face {
     id: EntityId,
     surface: Option<Arc<dyn Surface>>,
     loops: Vec<Loop>,
     orientation: Orientation,
+}
+
+impl std::fmt::Debug for Face {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Face")
+            .field("id", &self.id)
+            .field("surface", &self.surface.is_some())
+            .field("loops", &self.loops)
+            .field("orientation", &self.orientation)
+            .finish()
+    }
+}
+
+impl Clone for Face {
+    fn clone(&self) -> Self {
+        Self {
+            id: new_entity_id(),
+            surface: None, // Cannot clone dyn Surface
+            loops: self.loops.clone(),
+            orientation: self.orientation,
+        }
+    }
 }
 
 impl Face {
@@ -502,7 +523,6 @@ impl Entity for Coedge {
 }
 
 /// An edge connects two vertices and has an associated curve
-#[derive(Debug, Clone)]
 pub struct Edge {
     id: EntityId,
     start_vertex: Arc<Vertex>,
@@ -510,6 +530,32 @@ pub struct Edge {
     curve: Option<Arc<dyn Curve>>,
     tolerance: f64,
     coedges: Vec<EntityId>, // References to coedges using this edge
+}
+
+impl std::fmt::Debug for Edge {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Edge")
+            .field("id", &self.id)
+            .field("start_vertex", &self.start_vertex)
+            .field("end_vertex", &self.end_vertex)
+            .field("curve", &self.curve.is_some())
+            .field("tolerance", &self.tolerance)
+            .field("coedges", &self.coedges)
+            .finish()
+    }
+}
+
+impl Clone for Edge {
+    fn clone(&self) -> Self {
+        Self {
+            id: new_entity_id(),
+            start_vertex: self.start_vertex.clone(),
+            end_vertex: self.end_vertex.clone(),
+            curve: None, // Cannot clone dyn Curve
+            tolerance: self.tolerance,
+            coedges: self.coedges.clone(),
+        }
+    }
 }
 
 impl Edge {

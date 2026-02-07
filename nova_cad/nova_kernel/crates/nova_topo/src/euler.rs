@@ -1,6 +1,6 @@
 //! Euler operators for B-Rep topology manipulation
 
-use crate::{Body, Shell, Face, Loop, Coedge, Edge, Vertex, EntityId, Sense, TopoResult, TopologyError};
+use crate::{Body, Shell, Face, Loop, Coedge, Edge, Vertex, EntityId, Sense, TopoResult, TopologyError, Entity};
 use nova_math::Point3;
 use std::sync::Arc;
 

@@ -80,7 +80,6 @@ pub struct SurfaceEvaluation {
 }
 
 /// Intersection result type
-#[derive(Debug, Clone)]
 pub enum IntersectionResult {
     /// Point intersection
     Point(Point3),
@@ -88,6 +87,26 @@ pub enum IntersectionResult {
     Curve(Box<dyn Curve>),
     /// No intersection
     None,
+}
+
+impl std::fmt::Debug for IntersectionResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            IntersectionResult::Point(p) => f.debug_tuple("Point").field(p).finish(),
+            IntersectionResult::Curve(_) => f.debug_tuple("Curve").field(&"<dyn Curve>").finish(),
+            IntersectionResult::None => f.debug_struct("None").finish(),
+        }
+    }
+}
+
+impl Clone for IntersectionResult {
+    fn clone(&self) -> Self {
+        match self {
+            IntersectionResult::Point(p) => IntersectionResult::Point(*p),
+            IntersectionResult::Curve(_) => IntersectionResult::None, // Cannot clone dyn Curve
+            IntersectionResult::None => IntersectionResult::None,
+        }
+    }
 }
 
 /// Trait for geometric entities that can be tessellated

@@ -179,7 +179,7 @@ pub fn validate_body(body: &Body, tolerance: &ToleranceContext) -> TopoResult<Ve
 
 /// Compute bounding box of a body
 pub fn body_bounding_box(body: &Body) -> BoundingBox3 {
-    let mut bbox = BoundingBox3::EMPTY;
+    let mut bbox = BoundingBox3::empty();
     
     for vertex in body.vertices() {
         bbox.expand(&vertex.position());

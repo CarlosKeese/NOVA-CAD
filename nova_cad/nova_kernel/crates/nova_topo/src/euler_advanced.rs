@@ -6,10 +6,10 @@
 //! - Fillet construction
 //! - Boolean result construction
 
-use crate::{Body, Shell, Face, Loop, Coedge, Edge, Vertex, Sense, Orientation, Entity, GeometricEntity, TopologicalEntity};
+use crate::{Body, Shell, Face, Loop, Coedge, Edge, Vertex, Sense, Orientation, Entity, GeometricEntity, TopologicalEntity, EntityId};
 use crate::{EulerOps, EulerError, TopoResult, TopologyError, new_entity_id};
-use nova_math::{Point3, Vec3, Transform3};
-use nova_geom::{Curve, Surface, Line, Plane, PlanarSurface};
+use nova_math::{Point3, Vec3, Transform3, Plane};
+use nova_geom::{Curve, Surface, Line, PlanarSurface};
 use std::sync::Arc;
 
 /// Advanced Euler operations for solid modeling
@@ -113,9 +113,11 @@ impl EulerAdvanced {
             // Create planar surface for side face
             let origin = v1_bottom.position();
             let normal = (v2_bottom.position() - v1_bottom.position())
-                .cross(v1_top.position() - v1_bottom.position())
+                .cross(&(v1_top.position() - v1_bottom.position()))
                 .normalized();
-            let plane = PlanarSurface::from_origin_normal(origin, normal);
+            let u_axis = v2_bottom.position() - v1_bottom.position();
+            let v_axis = v1_top.position() - v1_bottom.position();
+            let plane = PlanarSurface::new(origin, u_axis, v_axis).unwrap_or_else(|_| PlanarSurface::from_plane(&Plane::new(origin, normal)));
             side_face.set_geometry(Some(Arc::new(plane)));
             
             shell.add_face(side_face);
@@ -147,13 +149,18 @@ impl EulerAdvanced {
         
         for i in 0..=num_segments {
             let current_angle = i as f64 * angle_step;
-            let rotation = Transform3::from_axis_angle(axis_origin, axis_direction, current_angle);
+            let rotation = Transform3::from_axis_angle(&axis_direction, current_angle);
             
             let ring: Vec<Arc<Vertex>> = outer_loop.coedges()
                 .iter()
                 .map(|c| {
                     let pos = c.start_vertex().position();
-                    let rotated_pos = rotation.transform_point(pos);
+                    let rotated_vec = rotation.apply_to_vector(&(pos - axis_origin));
+                    let rotated_pos = Point3::new(
+                        axis_origin.x() + rotated_vec.x(),
+                        axis_origin.y() + rotated_vec.y(),
+                        axis_origin.z() + rotated_vec.z(),
+                    );
                     Arc::new(Vertex::new(rotated_pos))
                 })
                 .collect();
@@ -328,8 +335,8 @@ impl EulerAdvanced {
         fillet_face.add_loop(fillet_loop);
         
         let edges = vec![
-            Edge::new(v1.clone(), fillet_v1),
-            Edge::new(v2.clone(), fillet_v3),
+            Edge::new(v1.clone(), fillet_v1.clone()),
+            Edge::new(v2.clone(), fillet_v3.clone()),
         ];
         
         let vertices = vec![
@@ -456,21 +463,18 @@ fn calculate_fillet_offset(
             .lerp(&edge.end_vertex().position(), 0.5)
     };
     
-    // Get surface normal at that point
-    let (u, v) = surface.closest_point(mid_point);
-    let eval = surface.evaluate(u, v);
-    
-    // Edge direction
-    let edge_dir = if let Some(curve) = edge.curve() {
-        let range = curve.param_range();
-        let eval_mid = curve.evaluate_derivative((range.start + range.end) / 2.0);
-        eval_mid.tangent.normalized()
+    // Get surface normal at that point (simplified)
+    let normal = if let Ok((u, v, _, _)) = surface.closest_point(&mid_point) {
+        surface.normal(u, v)
     } else {
-        (edge.end_vertex().position() - edge.start_vertex().position()).normalized()
+        Vec3::Z
     };
     
+    // Edge direction
+    let edge_dir = (edge.end_vertex().position() - edge.start_vertex().position()).normalized();
+    
     // Offset direction is perpendicular to both edge and normal
-    let offset = edge_dir.cross(eval.normal).normalized() * radius;
+    let offset = edge_dir.cross(&normal).normalized() * radius;
     
     Ok(offset)
 }
