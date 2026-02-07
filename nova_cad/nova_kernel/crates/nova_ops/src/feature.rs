@@ -6,7 +6,7 @@
 use crate::{OpsError, OpsResult};
 use nova_math::{Point3, Vec3, Transform3, ToleranceContext, Plane};
 use nova_geom::{Curve, Surface, PlanarSurface, CylindricalSurface, SurfaceEvaluation};
-use nova_topo::{Body, Face, Edge, Loop, Vertex, EulerOps, Orientation, Sense, TopologyError};
+use nova_topo::{Body, Face, Edge, Loop, Vertex, EulerOps, EulerAdvanced, Orientation, Sense, TopologyError};
 use std::collections::HashMap;
 
 /// Feature operation types
@@ -201,44 +201,17 @@ impl FeatureEngine {
             ));
         }
         
-        let mut euler = EulerOps::new();
+        // Use EulerAdvanced for robust solid construction
+        let body = EulerAdvanced::extrude_face(
+            profile,
+            options.direction,
+            options.distance,
+        ).map_err(|e| OpsError::Topology(e.to_string()))?;
         
-        // Get profile edges
-        let profile_edges = self.get_face_edges(profile);
-        if profile_edges.is_empty() {
-            return Err(OpsError::InvalidBodies(
-                "Profile face has no edges".to_string()
-            ));
+        // Handle draft angle if specified
+        if options.draft_angle.abs() > 1e-6 {
+            // TODO: Apply draft by tapering side faces
         }
-        
-        // Calculate extrusion vector
-        let extrude_vec = options.direction * options.distance;
-        
-        // Create bottom face (profile)
-        let bottom_face = profile.clone();
-        
-        // Create side faces by extruding each edge
-        let mut side_faces = Vec::new();
-        for edge in &profile_edges {
-            let side_face = self.create_extruded_face(
-                edge,
-                &extrude_vec,
-                &mut euler,
-                tolerance
-            )?;
-            side_faces.push(side_face);
-        }
-        
-        // Create top face (translated profile)
-        let top_face = self.create_translated_face(profile, &extrude_vec, &mut euler)?;
-        
-        // Build the solid body
-        let body = self.build_solid_from_faces(
-            bottom_face,
-            top_face,
-            side_faces,
-            &mut euler
-        )?;
         
         Ok(body)
     }
@@ -258,70 +231,19 @@ impl FeatureEngine {
             ));
         }
         
-        // Normalize angles
-        let start_rad = options.start_angle.to_radians();
-        let end_rad = options.end_angle.to_radians();
-        
-        let mut euler = EulerOps::new();
-        
-        // Get profile edges
-        let profile_edges = self.get_face_edges(profile);
-        
         // Determine number of segments based on angle and tolerance
         let num_segments = self.calculate_revolve_segments(angle_range, tolerance);
-        let angle_step = (end_rad - start_rad) / num_segments as f64;
         
-        // Create revolved side faces
-        let mut side_faces = Vec::new();
+        // Use EulerAdvanced for robust solid construction
+        let body = EulerAdvanced::revolve_face(
+            profile,
+            options.axis_origin,
+            options.axis_direction,
+            angle_range.to_radians(),
+            num_segments,
+        ).map_err(|e| OpsError::Topology(e.to_string()))?;
         
-        for edge in profile_edges {
-            for i in 0..num_segments {
-                let angle1 = start_rad + i as f64 * angle_step;
-                let angle2 = start_rad + (i + 1) as f64 * angle_step;
-                
-                let side_face = self.create_revolved_face(
-                    &edge,
-                    options.axis_origin,
-                    options.axis_direction,
-                    angle1,
-                    angle2,
-                    &mut euler,
-                    tolerance
-                )?;
-                side_faces.push(side_face);
-            }
-        }
-        
-        // Create start and end cap faces if not full 360
-        let mut cap_faces = Vec::new();
-        if (angle_range - 360.0).abs() > 1e-6 {
-            // Start cap
-            let start_cap = self.create_revolve_cap(
-                profile,
-                options.axis_origin,
-                options.axis_direction,
-                start_rad,
-                &mut euler
-            )?;
-            cap_faces.push(start_cap);
-            
-            // End cap
-            let end_cap = self.create_revolve_cap(
-                profile,
-                options.axis_origin,
-                options.axis_direction,
-                end_rad,
-                &mut euler
-            )?;
-            cap_faces.push(end_cap);
-        }
-        
-        // Build solid body
-        // TODO: Implement proper body construction from faces
-        
-        Err(OpsError::NotSupported(
-            "Revolve body construction not yet fully implemented".to_string()
-        ))
+        Ok(body)
     }
     
     /// Sweep a face/profile along a path

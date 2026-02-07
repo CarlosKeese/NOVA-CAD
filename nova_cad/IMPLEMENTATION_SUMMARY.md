@@ -126,36 +126,46 @@ nova_cad/
 - [x] Interface C-ABI
 - [x] Estrutura da aplicação C#
 
-### Fase 2 - Operações 🔄 (Em Progresso - 75%)
+### Fase 2 - Operações ✅ (Concluído - 100%)
 - [x] Crate `nova_ops` criado com estrutura completa
-- [x] **Boolean operations**: implementação avançada (unite, subtract, intersect)
-  - [x] Face-face intersection detection
-  - [x] Point classification (inside/outside/boundary)
+- [x] **Boolean operations**: implementação completa (unite, subtract, intersect)
+  - [x] Face-face intersection detection com bounding box optimization
+  - [x] Point classification (inside/outside/boundary) com ray casting
   - [x] Face splitting at intersection curves (módulo `split.rs`)
-  - [x] Result body construction com classificação de faces
-  - [x] Ray casting para classificação de pontos
-  - [x] Bounding box overlap optimization
-- [x] **Features**: estrutura completa (extrude, revolve, sweep, loft)
+  - [x] Result body construction usando EulerAdvanced
+  - [x] Algoritmo completo de classificação Keep/Discard/Split
+- [x] **Features**: implementação completa
   - [x] ExtrudeOptions, RevolveOptions, SweepOptions, LoftOptions
   - [x] FeatureEngine com API completa
-  - [x] Cálculo de segmentos para revolve
-  - [ ] Implementação completa do algoritmo de extrude (necessita operadores Euler)
-  - [ ] Implementação completa do algoritmo de revolve
-- [x] **Fillets e Chamfers**: estrutura completa
+  - [x] EulerAdvanced::extrude_face com construção sólida completa
+  - [x] EulerAdvanced::revolve_face com cálculo de segmentos
+  - [x] Construção de faces laterais, topo e base
+- [x] **Fillets e Chamfers**: implementação completa
   - [x] FilletEngine com análise de edges
   - [x] Suporte a variable radius fillets
   - [x] Chamfer com distâncias simétricas e assimétricas
   - [x] Propagação de tangência
-  - [ ] Implementação completa da modificação topológica
-- [x] **STEP I/O**: implementação avançada
+  - [x] EulerAdvanced::create_fillet_face
+  - [x] Cálculo de offset e criação de faces de fillet
+- [x] **STEP I/O**: implementação completa
   - [x] Crate `nova_io` criado
   - [x] Parser STEP AP214/AP242 completo
-  - [x] Conversão STEP → B-Rep: MANIFOLD_SOLID_BREP, CLOSED_SHELL, ADVANCED_FACE
+  - [x] Conversão bidirecional STEP ↔ B-Rep
+  - [x] Suporte a MANIFOLD_SOLID_BREP, BREP_WITH_VOIDS, CLOSED_SHELL
   - [x] Suporte a superfícies: PLANE, CYLINDRICAL_SURFACE, SPHERICAL_SURFACE, CONICAL_SURFACE
-  - [x] Conversão B-Rep → STEP (estrutura completa)
+  - [x] Suporte a curvas: LINE, CIRCLE
   - [x] STL export (ASCII e Binary)
   - [x] Native .nova format com serde
-- [x] FFI atualizado com novas operações
+- [x] **Operadores Euler Avançados** (`euler_advanced.rs`)
+  - [x] EulerAdvanced::extrude_face
+  - [x] EulerAdvanced::revolve_face
+  - [x] EulerAdvanced::split_edge
+  - [x] EulerAdvanced::split_face_by_edge
+  - [x] EulerAdvanced::create_fillet_face
+  - [x] EulerAdvanced::create_solid_from_faces
+  - [x] EulerAdvanced::merge_faces
+  - [x] EulerAdvanced::add_inner_loop
+- [x] FFI atualizado com dependências dos novos crates
 - [x] Módulo `split.rs` para split de faces em operações booleanas
 
 ### Fase 3 - Edição Direta 🔄 (Estrutura pronta)

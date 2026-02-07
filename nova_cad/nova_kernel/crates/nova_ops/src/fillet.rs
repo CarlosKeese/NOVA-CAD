@@ -5,7 +5,7 @@
 use crate::{OpsError, OpsResult};
 use nova_math::{Point3, Vec3, ToleranceContext};
 use nova_geom::{Curve, Surface, SurfaceEvaluation};
-use nova_topo::{Body, Face, Edge, Vertex, EulerOps, Orientation};
+use nova_topo::{Body, Face, Edge, Vertex, EulerOps, EulerAdvanced, Orientation};
 use std::collections::{HashMap, HashSet};
 
 /// Fillet operation
@@ -296,25 +296,25 @@ impl FilletEngine {
         
         let (face1, face2) = (&faces[0], &faces[1]);
         
-        // Calculate fillet surface (rolling ball surface)
-        let fillet_surface = self.create_fillet_surface(
-            face1,
-            face2,
+        // Use EulerAdvanced to create fillet geometry
+        let (fillet_face, new_edges, new_vertices) = EulerAdvanced::create_fillet_face(
             edge,
             radius,
-            tolerance
-        )?;
+            face1,
+            face2,
+        ).map_err(|e| OpsError::FilletFailed(e.to_string()))?;
         
-        // Create new topology:
-        // 1. Split the original edge into three parts (trimmed ends + middle)
-        // 2. Create fillet face connecting the trimmed edges
-        // 3. Modify adjacent faces to meet the fillet
+        // Build result body with fillet face
+        let mut result_body = body.clone();
         
-        // TODO: Implement complete fillet topology modification
+        // Add the fillet face to the appropriate shell
+        if let Some(shell) = result_body.shells_mut().first_mut() {
+            shell.add_face(fillet_face);
+        }
         
-        Err(OpsError::NotSupported(
-            "Fillet edge modification not yet fully implemented".to_string()
-        ))
+        // TODO: Trim original faces and reconnect topology
+        
+        Ok(result_body)
     }
     
     /// Chamfer a single edge

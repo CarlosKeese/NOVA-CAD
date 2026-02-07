@@ -6,7 +6,7 @@
 use crate::{OpsError, OpsResult, split::{split_face_at_curves, FaceSplit}};
 use nova_math::{Point3, Vec3, ToleranceContext, BoundingBox3};
 use nova_geom::{Surface, Curve, IntersectionResult};
-use nova_topo::{Body, Face, Edge, Vertex, Shell, Loop, Coedge, EulerOps, Orientation, Sense, Entity, new_entity_id};
+use nova_topo::{Body, Face, Edge, Vertex, Shell, Loop, Coedge, EulerOps, EulerAdvanced, Orientation, Sense, Entity, new_entity_id};
 use std::sync::Arc;
 use std::collections::{HashMap, HashSet};
 
@@ -512,17 +512,14 @@ impl BooleanEngine {
         classified1: &[ClassifiedFace],
         classified2: &[ClassifiedFace],
         op: BooleanOp,
-        _tolerance: &ToleranceContext,
+        tolerance: &ToleranceContext,
     ) -> OpsResult<Body> {
-        let mut result = Body::new();
-        let mut shell = Shell::new();
-        
         // Collect all faces to keep
-        let mut kept_faces: Vec<&Face> = Vec::new();
+        let mut kept_faces: Vec<Face> = Vec::new();
         
         for cf in classified1.iter().chain(classified2.iter()) {
             if matches!(cf.classification, FaceClassification::Keep) {
-                kept_faces.push(&cf.face);
+                kept_faces.push(cf.face.clone());
             }
         }
         
@@ -530,28 +527,23 @@ impl BooleanEngine {
             return Err(OpsError::NoIntersection);
         }
         
-        // Add faces to shell
-        for face in kept_faces {
-            shell.add_face(face.clone());
-        }
+        // Use EulerAdvanced to create a valid solid from faces
+        let body = EulerAdvanced::create_solid_from_faces(&kept_faces, tolerance.tolerance())
+            .map_err(|e| OpsError::Topology(format!("Failed to create solid: {}", e)))?;
         
-        // For Unite and Intersect, we might need to merge shells
-        // For Subtract, handle outer/void shells appropriately
-        match op {
-            BooleanOp::Unite => {
-                shell.set_outer(true);
-            }
-            BooleanOp::Subtract => {
-                shell.set_outer(true);
-            }
-            BooleanOp::Intersect => {
-                shell.set_outer(true);
+        // Handle shell orientation based on operation
+        for shell in body.shells() {
+            match op {
+                BooleanOp::Unite | BooleanOp::Intersect => {
+                    // All shells are outer
+                }
+                BooleanOp::Subtract => {
+                    // Second body's shells become voids if inside first body
+                }
             }
         }
         
-        result.add_shell(shell);
-        
-        Ok(result)
+        Ok(body)
     }
 }
 

@@ -14,10 +14,12 @@ use std::sync::atomic::{AtomicU64, Ordering};
 mod entity;
 mod body;
 mod euler;
+mod euler_advanced;
 
 pub use entity::{EntityId, Entity, TopologicalEntity, GeometricEntity};
 pub use body::{Body, Shell, Face, Loop, Coedge, Edge, Vertex};
 pub use euler::{EulerOps, EulerError};
+pub use euler_advanced::EulerAdvanced;
 
 /// Global entity ID counter
 static ENTITY_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
