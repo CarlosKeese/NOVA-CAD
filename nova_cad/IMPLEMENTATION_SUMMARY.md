@@ -126,11 +126,30 @@ nova_cad/
 - [x] Interface C-ABI
 - [x] Estrutura da aplicação C#
 
-### Fase 2 - Operações 🔄 (Estrutura pronta)
-- [x] Estrutura para Boolean operations
-- [x] Estrutura para Features
-- [x] Estrutura para STEP I/O
-- [ ] Implementação completa das operações
+### Fase 2 - Operações 🔄 (Em Progresso - 40%)
+- [x] Crate `nova_ops` criado com estrutura completa
+- [x] **Boolean operations**: estrutura completa (unite, subtract, intersect)
+  - [x] Face-face intersection detection
+  - [x] Point classification (inside/outside/boundary)
+  - [ ] Face splitting at intersection curves
+  - [ ] Result body construction
+- [x] **Features**: estrutura completa (extrude, revolve, sweep, loft)
+  - [x] ExtrudeOptions, RevolveOptions, SweepOptions
+  - [x] FeatureEngine com API completa
+  - [ ] Implementação completa do algoritmo de extrude
+  - [ ] Implementação completa do algoritmo de revolve
+- [x] **Fillets e Chamfers**: estrutura completa
+  - [x] FilletEngine com análise de edges
+  - [x] Suporte a variable radius fillets
+  - [x] Chamfer com distâncias simétricas e assimétricas
+  - [ ] Implementação completa da modificação topológica
+- [x] **STEP I/O**: estrutura completa
+  - [x] Crate `nova_io` criado
+  - [x] Parser STEP AP214/AP242 básico
+  - [x] STL export (ASCII e Binary)
+  - [x] Native .nova format
+  - [ ] Conversão completa STEP ↔ B-Rep
+- [x] FFI atualizado com novas operações
 
 ### Fase 3 - Edição Direta 🔄 (Estrutura pronta)
 - [x] Estrutura para face move
