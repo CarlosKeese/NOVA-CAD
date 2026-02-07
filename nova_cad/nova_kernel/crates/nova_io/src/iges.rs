@@ -22,7 +22,7 @@ impl IgesReader {
     /// Read IGES file content and return bodies
     pub fn read(&self, _content: &str, _options: &ImportOptions) -> IoResult<Vec<Body>> {
         // TODO: Implement IGES reading
-        Err(IoError::NotSupported(
+        Err(IoError::UnsupportedFormat(
             "IGES import not yet implemented".to_string()
         ))
     }
@@ -43,7 +43,7 @@ impl IgesWriter {
     /// Write bodies to IGES format
     pub fn write(&self, _bodies: &[Body], _options: &ExportOptions) -> IoResult<String> {
         // TODO: Implement IGES writing
-        Err(IoError::NotSupported(
+        Err(IoError::UnsupportedFormat(
             "IGES export not yet implemented".to_string()
         ))
     }

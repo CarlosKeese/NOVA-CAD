@@ -4,7 +4,7 @@
 //! of B-Rep data with full fidelity.
 
 use crate::{IoError, IoResult, ImportOptions, ExportOptions};
-use nova_topo::Body;
+use nova_topo::{Body, Entity};
 use serde::{Serialize, Deserialize};
 
 /// Native Nova format reader
@@ -167,7 +167,7 @@ impl NovaReader {
         // TODO: Implement full conversion from NovaBody to Body
         // This requires reconstructing the full B-Rep topology
         
-        Err(IoError::NotSupported(
+        Err(IoError::UnsupportedFormat(
             "Nova body conversion not yet implemented".to_string()
         ))
     }
@@ -187,7 +187,7 @@ impl NovaWriter {
     
     /// Write bodies to Nova format
     pub fn write(&self, bodies: &[Body], options: &ExportOptions) -> IoResult<String> {
-        let nova_file = self.convert_to_nova(bodies, options)?;
+        let nova_file = self.convert_to_bodies(bodies, options)?;
         
         serde_json::to_string_pretty(&nova_file)
             .map_err(|e| IoError::WriteError(format!("Failed to serialize Nova file: {}", e)))
@@ -259,10 +259,10 @@ impl NovaWriter {
     
     /// Convert Face to NovaFace
     fn convert_face(&self, face: &nova_topo::Face, id: u64) -> IoResult<NovaFace> {
-        let surface = face.surface();
+        let surface = face.surface().ok_or_else(|| IoError::InvalidData("Face has no surface".to_string()))?;
         
         // Determine surface type and serialize
-        let (surface_type, surface_data) = self.serialize_surface(surface)?;
+        let (surface_type, surface_data) = self.serialize_surface(&**surface)?;
         
         let mut loops = Vec::new();
         for (i, loop_) in face.loops().iter().enumerate() {

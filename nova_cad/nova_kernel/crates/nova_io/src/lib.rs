@@ -13,6 +13,11 @@ use nova_topo::Body;
 use std::path::Path;
 use thiserror::Error;
 
+/// Re-export geometry error for convenience
+pub use nova_geom::GeometryError;
+/// Re-export topology error for convenience
+pub use nova_topo::TopologyError;
+
 pub mod step;
 pub mod iges;
 pub mod stl;
@@ -61,6 +66,18 @@ pub enum IoError {
 
 /// Result type for I/O operations
 pub type IoResult<T> = Result<T, IoError>;
+
+impl From<GeometryError> for IoError {
+    fn from(err: GeometryError) -> Self {
+        IoError::InvalidData(err.to_string())
+    }
+}
+
+impl From<TopologyError> for IoError {
+    fn from(err: TopologyError) -> Self {
+        IoError::InvalidData(err.to_string())
+    }
+}
 
 /// File format types
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

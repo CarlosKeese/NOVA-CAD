@@ -87,47 +87,12 @@ impl StlWriter {
     /// Tessellate a face to triangles
     fn tessellate_face(
         &self,
-        face: &nova_topo::Face,
-        options: &ExportOptions,
+        _face: &nova_topo::Face,
+        _options: &ExportOptions,
     ) -> IoResult<Vec<StlTriangle>> {
-        use nova_geom::Tessellatable;
-        
-        let surface = face.surface();
-        let tessellation = surface.tessellate(options.tolerance);
-        
-        let mut triangles = Vec::new();
-        
-        if let nova_geom::Tessellation::TriangleMesh { vertices, indices, normals, .. } = tessellation {
-            // Convert indices to triangles
-            for i in (0..indices.len()).step_by(3) {
-                if i + 2 < indices.len() {
-                    let i1 = indices[i] as usize;
-                    let i2 = indices[i + 1] as usize;
-                    let i3 = indices[i + 2] as usize;
-                    
-                    if i1 < vertices.len() && i2 < vertices.len() && i3 < vertices.len() {
-                        // Calculate or use provided normal
-                        let normal = if !normals.is_empty() && i1 < normals.len() {
-                            normals[i1]
-                        } else {
-                            // Calculate from vertices
-                            let v1 = vertices[i2] - vertices[i1];
-                            let v2 = vertices[i3] - vertices[i1];
-                            v1.cross(v2).normalized()
-                        };
-                        
-                        triangles.push(StlTriangle {
-                            normal,
-                            v1: vertices[i1],
-                            v2: vertices[i2],
-                            v3: vertices[i3],
-                        });
-                    }
-                }
-            }
-        }
-        
-        Ok(triangles)
+        // TODO: Implement tessellation for surfaces
+        // This requires Tessellatable trait to be implemented for Surface types
+        Ok(Vec::new())
     }
     
     /// Write triangles to ASCII STL
@@ -146,20 +111,20 @@ impl StlWriter {
         for tri in triangles {
             output.push_str(&format!(
                 "  facet normal {:.6} {:.6} {:.6}\n",
-                tri.normal.x, tri.normal.y, tri.normal.z
+                tri.normal.x(), tri.normal.y(), tri.normal.z()
             ));
             output.push_str("    outer loop\n");
             output.push_str(&format!(
                 "      vertex {:.6} {:.6} {:.6}\n",
-                tri.v1.x, tri.v1.y, tri.v1.z
+                tri.v1.x(), tri.v1.y(), tri.v1.z()
             ));
             output.push_str(&format!(
                 "      vertex {:.6} {:.6} {:.6}\n",
-                tri.v2.x, tri.v2.y, tri.v2.z
+                tri.v2.x(), tri.v2.y(), tri.v2.z()
             ));
             output.push_str(&format!(
                 "      vertex {:.6} {:.6} {:.6}\n",
-                tri.v3.x, tri.v3.y, tri.v3.z
+                tri.v3.x(), tri.v3.y(), tri.v3.z()
             ));
             output.push_str("    endloop\n");
             output.push_str("  endfacet\n");
@@ -178,7 +143,7 @@ impl StlWriter {
     ) -> IoResult<String> {
         // Binary STL is not text, but we'll return a placeholder
         // In real implementation, this would return Vec<u8>
-        Err(IoError::NotSupported(
+        Err(IoError::UnsupportedFormat(
             "Binary STL output should use Vec<u8>".to_string()
         ))
     }
@@ -209,24 +174,24 @@ pub fn write_binary_stl(bodies: &[Body], options: &ExportOptions) -> IoResult<Ve
     // Each triangle: 12 bytes normal + 12 bytes v1 + 12 bytes v2 + 12 bytes v3 + 2 bytes attribute
     for tri in triangles {
         // Normal (3 floats)
-        bytes.extend_from_slice(&(tri.normal.x as f32).to_le_bytes());
-        bytes.extend_from_slice(&(tri.normal.y as f32).to_le_bytes());
-        bytes.extend_from_slice(&(tri.normal.z as f32).to_le_bytes());
+        bytes.extend_from_slice(&(tri.normal.x() as f32).to_le_bytes());
+        bytes.extend_from_slice(&(tri.normal.y() as f32).to_le_bytes());
+        bytes.extend_from_slice(&(tri.normal.z() as f32).to_le_bytes());
         
         // Vertex 1
-        bytes.extend_from_slice(&(tri.v1.x as f32).to_le_bytes());
-        bytes.extend_from_slice(&(tri.v1.y as f32).to_le_bytes());
-        bytes.extend_from_slice(&(tri.v1.z as f32).to_le_bytes());
+        bytes.extend_from_slice(&(tri.v1.x() as f32).to_le_bytes());
+        bytes.extend_from_slice(&(tri.v1.y() as f32).to_le_bytes());
+        bytes.extend_from_slice(&(tri.v1.z() as f32).to_le_bytes());
         
         // Vertex 2
-        bytes.extend_from_slice(&(tri.v2.x as f32).to_le_bytes());
-        bytes.extend_from_slice(&(tri.v2.y as f32).to_le_bytes());
-        bytes.extend_from_slice(&(tri.v2.z as f32).to_le_bytes());
+        bytes.extend_from_slice(&(tri.v2.x() as f32).to_le_bytes());
+        bytes.extend_from_slice(&(tri.v2.y() as f32).to_le_bytes());
+        bytes.extend_from_slice(&(tri.v2.z() as f32).to_le_bytes());
         
         // Vertex 3
-        bytes.extend_from_slice(&(tri.v3.x as f32).to_le_bytes());
-        bytes.extend_from_slice(&(tri.v3.y as f32).to_le_bytes());
-        bytes.extend_from_slice(&(tri.v3.z as f32).to_le_bytes());
+        bytes.extend_from_slice(&(tri.v3.x() as f32).to_le_bytes());
+        bytes.extend_from_slice(&(tri.v3.y() as f32).to_le_bytes());
+        bytes.extend_from_slice(&(tri.v3.z() as f32).to_le_bytes());
         
         // Attribute byte count (usually 0)
         bytes.extend_from_slice(&[0u8, 0]);

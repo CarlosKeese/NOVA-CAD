@@ -6,6 +6,7 @@ use crate::{IoError, IoResult, ImportOptions, ExportOptions};
 use nova_topo::{Body, Shell, Face, Loop, Coedge, Edge, Vertex, EulerOps, Sense, Orientation, Entity, new_entity_id};
 use nova_math::{Point3, Vec3, Transform3};
 use nova_geom::{Curve, Surface, PlanarSurface, CylindricalSurface, SphericalSurface, ConicalSurface, Line, CircularArc};
+use nova_math::Plane;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -214,6 +215,10 @@ impl<'a> StepToBrepsConverter<'a> {
         
         let outer_ref = entity.attributes[1].as_reference()
             .ok_or_else(|| IoError::StepError("Invalid outer shell reference".to_string()))?;
+        let void_refs = match &entity.attributes[2] {
+            StepAttribute::List(refs) => refs.clone(),
+            _ => Vec::new(),
+        };
         
         let mut body = Body::new();
         
@@ -222,12 +227,10 @@ impl<'a> StepToBrepsConverter<'a> {
         body.add_shell(outer_shell);
         
         // Convert void shells
-        if let StepAttribute::List(void_refs) = &entity.attributes[2] {
-            for void_ref in void_refs {
-                if let StepAttribute::Reference(void_id) = void_ref {
-                    let void_shell = self.convert_closed_shell(*void_id)?;
-                    body.add_shell(void_shell);
-                }
+        for void_ref in void_refs {
+            if let StepAttribute::Reference(void_id) = void_ref {
+                let void_shell = self.convert_closed_shell(void_id)?;
+                body.add_shell(void_shell);
             }
         }
         
@@ -243,14 +246,17 @@ impl<'a> StepToBrepsConverter<'a> {
             return Err(IoError::StepError("CLOSED_SHELL missing attributes".to_string()));
         }
         
+        let face_refs = match &entity.attributes[1] {
+            StepAttribute::List(refs) => refs.clone(),
+            _ => Vec::new(),
+        };
+        
         let mut shell = Shell::new();
         
-        if let StepAttribute::List(face_refs) = &entity.attributes[1] {
-            for face_ref in face_refs {
-                if let StepAttribute::Reference(face_id) = face_ref {
-                    let face = self.convert_advanced_face(*face_id)?;
-                    shell.add_face(face);
-                }
+        for face_ref in face_refs {
+            if let StepAttribute::Reference(face_id) = face_ref {
+                let face = self.convert_advanced_face(face_id)?;
+                shell.add_face(face);
             }
         }
         
@@ -269,17 +275,20 @@ impl<'a> StepToBrepsConverter<'a> {
         // Get surface
         let surface_ref = entity.attributes[2].as_reference()
             .ok_or_else(|| IoError::StepError("Invalid surface reference".to_string()))?;
+        let bound_refs = match &entity.attributes[1] {
+            StepAttribute::List(refs) => refs.clone(),
+            _ => Vec::new(),
+        };
+        
         let surface = self.convert_surface(surface_ref)?;
         
         let mut face = Face::with_surface(surface);
         
         // Get bounds (loops)
-        if let StepAttribute::List(bound_refs) = &entity.attributes[1] {
-            for (i, bound_ref) in bound_refs.iter().enumerate() {
-                if let StepAttribute::Reference(bound_id) = bound_ref {
-                    let loop_ = self.convert_face_bound(*bound_id, i == 0)?;
-                    face.add_loop(loop_);
-                }
+        for (i, bound_ref) in bound_refs.iter().enumerate() {
+            if let StepAttribute::Reference(bound_id) = bound_ref {
+                let loop_ = self.convert_face_bound(*bound_id, i == 0)?;
+                face.add_loop(loop_);
             }
         }
         
@@ -312,15 +321,18 @@ impl<'a> StepToBrepsConverter<'a> {
             return Err(IoError::StepError("EDGE_LOOP missing attributes".to_string()));
         }
         
+        let edge_refs = match &entity.attributes[1] {
+            StepAttribute::List(refs) => refs.clone(),
+            _ => Vec::new(),
+        };
+        
         let mut coedges = Vec::new();
         
-        if let StepAttribute::List(edge_refs) = &entity.attributes[1] {
-            for edge_ref in edge_refs {
-                if let StepAttribute::Reference(edge_id) = edge_ref {
-                    let (edge, sense) = self.convert_oriented_edge(*edge_id)?;
-                    let coedge = Coedge::new(edge, sense);
-                    coedges.push(coedge);
-                }
+        for edge_ref in edge_refs {
+            if let StepAttribute::Reference(edge_id) = edge_ref {
+                let (edge, sense) = self.convert_oriented_edge(edge_id)?;
+                let coedge = Coedge::new(edge, sense);
+                coedges.push(coedge);
             }
         }
         
@@ -461,9 +473,9 @@ impl<'a> StepToBrepsConverter<'a> {
             .ok_or_else(|| IoError::StepError("Invalid position reference".to_string()))?;
         
         // Get axis placement
-        let (origin, normal) = self.convert_axis2_placement_3d(position_ref)?;
+        let (origin, normal, ref_direction) = self.convert_axis2_placement_3d_with_ref(position_ref)?;
         
-        let plane = PlanarSurface::from_origin_normal(origin, normal);
+        let plane = PlanarSurface::from_plane(&Plane::new(origin, normal));
         Ok(Arc::new(plane))
     }
     
@@ -481,10 +493,10 @@ impl<'a> StepToBrepsConverter<'a> {
         let radius = entity.attributes[2].as_real()
             .ok_or_else(|| IoError::StepError("Invalid radius".to_string()))?;
         
-        let (origin, axis) = self.convert_axis2_placement_3d(position_ref)?;
+        let (origin, axis, ref_direction) = self.convert_axis2_placement_3d_with_ref(position_ref)?;
         
         let scale = self.options.target_units.to_mm_factor();
-        let cylinder = CylindricalSurface::new(origin, axis, radius * scale);
+        let cylinder = CylindricalSurface::new(origin, axis, radius * scale, ref_direction)?;
         Ok(Arc::new(cylinder))
     }
     
@@ -502,10 +514,10 @@ impl<'a> StepToBrepsConverter<'a> {
         let radius = entity.attributes[2].as_real()
             .ok_or_else(|| IoError::StepError("Invalid radius".to_string()))?;
         
-        let (center, axis) = self.convert_axis2_placement_3d(position_ref)?;
+        let (center, axis, ref_direction) = self.convert_axis2_placement_3d_with_ref(position_ref)?;
         
         let scale = self.options.target_units.to_mm_factor();
-        let sphere = SphericalSurface::new(center, axis, radius * scale);
+        let sphere = SphericalSurface::new(center, radius * scale, axis, ref_direction)?;
         Ok(Arc::new(sphere))
     }
     
@@ -525,10 +537,10 @@ impl<'a> StepToBrepsConverter<'a> {
         let semi_angle = entity.attributes[3].as_real()
             .ok_or_else(|| IoError::StepError("Invalid semi_angle".to_string()))?;
         
-        let (apex, axis) = self.convert_axis2_placement_3d(position_ref)?;
+        let (apex, axis, ref_direction) = self.convert_axis2_placement_3d_with_ref(position_ref)?;
         
         let scale = self.options.target_units.to_mm_factor();
-        let cone = ConicalSurface::new(apex, axis, radius * scale, semi_angle);
+        let cone = ConicalSurface::new(apex, axis, semi_angle, ref_direction)?;
         Ok(Arc::new(cone))
     }
     
@@ -550,6 +562,29 @@ impl<'a> StepToBrepsConverter<'a> {
         let axis = self.convert_direction(axis_ref)?;
         
         Ok((origin, axis))
+    }
+    
+    /// Convert AXIS2_PLACEMENT_3D to (origin, z_axis, ref_direction)
+    fn convert_axis2_placement_3d_with_ref(&self, id: u64) -> IoResult<(Point3, Vec3, Vec3)> {
+        let entity = self.get_entity(id)?;
+        
+        // AXIS2_PLACEMENT_3D(name, location, axis, ref_direction)
+        if entity.attributes.len() < 4 {
+            return Err(IoError::StepError("AXIS2_PLACEMENT_3D missing attributes".to_string()));
+        }
+        
+        let location_ref = entity.attributes[1].as_reference()
+            .ok_or_else(|| IoError::StepError("Invalid location reference".to_string()))?;
+        let axis_ref = entity.attributes[2].as_reference()
+            .ok_or_else(|| IoError::StepError("Invalid axis reference".to_string()))?;
+        let ref_dir_ref = entity.attributes[3].as_reference()
+            .ok_or_else(|| IoError::StepError("Invalid ref_direction reference".to_string()))?;
+        
+        let origin = self.convert_cartesian_point(location_ref)?;
+        let axis = self.convert_direction(axis_ref)?;
+        let ref_direction = self.convert_direction(ref_dir_ref)?;
+        
+        Ok((origin, axis, ref_direction))
     }
     
     /// Convert DIRECTION to Vec3
@@ -603,7 +638,7 @@ impl<'a> StepToBrepsConverter<'a> {
         let point = self.convert_cartesian_point(point_ref)?;
         let direction = self.convert_direction(direction_ref)?;
         
-        let line = Line::from_point_direction(point, direction);
+        let line = Line::infinite(point, direction)?;
         Ok(Arc::new(line))
     }
     
@@ -624,7 +659,7 @@ impl<'a> StepToBrepsConverter<'a> {
         let (center, axis) = self.convert_axis2_placement_3d(position_ref)?;
         
         let scale = self.options.target_units.to_mm_factor();
-        let circle = CircularArc::full_circle(center, axis, radius * scale);
+        let circle = CircularArc::circle(center, radius * scale, axis)?;
         Ok(Arc::new(circle))
     }
     
