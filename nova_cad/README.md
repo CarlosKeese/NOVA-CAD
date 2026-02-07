@@ -107,14 +107,16 @@ dotnet run --project src/NovaCad.App
 - [x] **STL I/O**: Export ASCII e Binary
 - [x] **Operadores Euler Avançados**: extrude_face, revolve_face, create_fillet_face, create_solid_from_faces
 
-### Fase 3 - Edição Direta
-- [ ] Face move/rotate/offset
-- [ ] Live rules
-- [ ] Geometric recognition
+### Fase 3 - Edição Direta 🔄 (Em Progresso - 40%)
+- [x] Face move/rotate/offset com resolução topológica
+- [x] Live rules (Parallel, Perpendicular, Concentric, etc.)
+- [x] Geometric recognition (Hole, Pad, Pocket, Fillet, etc.)
+- [x] Steering Wheel (widget de manipulação 3D)
+- [ ] Integração completa com aplicação
 
 ### Fase 4 - Aplicação CAD
 - [ ] Viewport 3D com OpenGL
-- [ ] Steering Wheel
+- [ ] Integração Steering Wheel com UI
 - [ ] Seleção e manipulação
 - [ ] Mold tools
 

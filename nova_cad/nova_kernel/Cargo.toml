@@ -10,8 +10,6 @@ members = [
     "crates/nova_check",
     "crates/nova_ffi",
     "crates/nova_kernel",
-    "crates/nova_bench",
-    "crates/nova_test",
 ]
 resolver = "2"
 

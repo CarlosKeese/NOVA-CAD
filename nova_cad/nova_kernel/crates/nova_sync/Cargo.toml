@@ -1,0 +1,22 @@
+[package]
+name = "nova_sync"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Synchronous Technology (Direct Editing) for Nova Kernel 3D"
+
+[dependencies]
+nova_math = { path = "../nova_math" }
+nova_geom = { path = "../nova_geom" }
+nova_topo = { path = "../nova_topo" }
+nova_ops = { path = "../nova_ops" }
+
+thiserror = { workspace = true }
+rayon = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }

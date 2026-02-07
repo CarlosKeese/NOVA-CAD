@@ -175,10 +175,12 @@ NovaCad.App       : Aplicação principal
 - [x] STL I/O: ASCII/Binary export
 - [x] EulerAdvanced: extrude_face, revolve_face, split_edge, create_fillet_face, create_solid_from_faces
 
-### Fase 3 - Edição Direta
-- [ ] Face move/rotate/offset
-- [ ] Live rules
-- [ ] Geometric recognition
+### Fase 3 - Edição Direta 🔄 (Em Progresso - 40%)
+- [x] Face move/rotate/offset com resolução topológica
+- [x] Live rules (Parallel, Perpendicular, Concentric, Coplanar, Symmetric)
+- [x] Geometric recognition (Hole, Pad, Pocket, Slot, Fillet, Chamfer)
+- [x] Steering Wheel (3 eixos, handles, constraints)
+- [ ] Integração completa com aplicação C#
 
 ### Fase 4 - Aplicação Completa
 - [ ] Viewport 3D com OpenGL
