@@ -35,17 +35,21 @@ use nova_topo::{Body, Face, Edge, Vertex, EntityId};
 use std::collections::{HashMap, HashSet};
 
 pub mod face_edit;
+pub mod face_edit_impl;
 pub mod live_rules;
 pub mod recognition;
+pub mod feature_handle;
 pub mod steering_wheel;
 pub mod resolve;
 pub mod error;
 
 pub use face_edit::{FaceEditEngine, FaceEditOp, MoveOptions, RotateOptions, OffsetOptions};
+pub use face_edit_impl::{FaceEditImpl, FaceEditOptions, FaceEditResult};
 pub use live_rules::{LiveRulesEngine, Rule, RuleType, RulePriority};
 pub use recognition::{FeatureRecognizer, RecognizedFeature, FeatureType};
+pub use feature_handle::{FeatureHandleSystem, FeatureHandle, HandleType, FeatureEdit, FeatureWidget};
 pub use steering_wheel::{SteeringWheel, WheelMode, AxisConstraint};
-pub use resolve::{TopologyResolver, ResolutionStrategy};
+pub use resolve::{TopologyResolver, ResolutionStrategy, ResolutionResult};
 pub use error::{SyncError, SyncResult};
 
 /// Synchronous editing context
