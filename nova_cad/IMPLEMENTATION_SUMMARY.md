@@ -212,13 +212,26 @@ nova_cad/
 - [x] Integração completa entre todos os módulos
 - [x] Sistema de undo/redo para operações síncronas
 
-### Fase 4 - Aplicação Completa 🔄 (UI básica pronta)
+### Fase 4 - Aplicação Completa 🔄 (Em Progresso - 40%)
 - [x] Interface básica com AvaloniaUI
 - [x] Menu, toolbar, painéis
 - [x] Comandos básicos
-- [ ] Viewport 3D com OpenGL
-- [ ] Steering Wheel
-- [ ] Seleção avançada
+- [x] **Viewport 3D com OpenGL (Silk.NET)**
+  - [x] Viewport3D classe principal de renderização
+  - [x] Camera3D com orbit, pan, zoom
+  - [x] Mesh com VAO/VBO/EBO
+  - [x] Shader system
+  - [x] Renderer para grid e eixos
+  - [x] Ray casting para picking
+  - [x] ViewportControl integrado com Avalonia
+- [ ] **Steering Wheel UI**
+  - [ ] Widget 3D overlay
+  - [ ] Integração com eventos de mouse
+  - [ ] Visualização de handles
+- [ ] **Seleção e Manipulação**
+  - [ ] Highlight de entidades selecionadas
+  - [ ] Manipulação direta no viewport
+  - [ ] Gizmos de transformação
 
 ## Como Usar
 

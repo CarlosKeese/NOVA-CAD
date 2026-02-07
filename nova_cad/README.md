@@ -115,8 +115,8 @@ dotnet run --project src/NovaCad.App
 - [x] Steering Wheel (widget de manipulação 3D)
 - [x] Topology resolution (Extend, Trim, Blend)
 
-### Fase 4 - Aplicação CAD
-- [ ] Viewport 3D com OpenGL
+### Fase 4 - Aplicação CAD 🔄 (Em Progresso - 40%)
+- [x] Viewport 3D com OpenGL/Silk.NET
 - [ ] Integração Steering Wheel com UI
 - [ ] Seleção e manipulação
 - [ ] Mold tools

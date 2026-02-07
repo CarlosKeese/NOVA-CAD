@@ -183,10 +183,14 @@ NovaCad.App       : Aplicação principal
 - [x] Steering Wheel (3 eixos, handles, constraints, snap)
 - [x] Topology resolution (Extend, Trim, Blend, Stitch)
 
-### Fase 4 - Aplicação Completa
-- [ ] Viewport 3D com OpenGL
-- [ ] Steering Wheel
-- [ ] Seleção e manipulação
+### Fase 4 - Aplicação Completa 🔄 (Em Progresso - 40%)
+- [x] Viewport 3D com OpenGL/Silk.NET
+  - [x] Camera3D com orbit controls
+  - [x] Mesh rendering
+  - [x] Picking/Selection
+  - [x] Grid e axes
+- [ ] Steering Wheel UI
+- [ ] Seleção e manipulação 3D
 - [ ] Mold tools
 
 ## Licenças
