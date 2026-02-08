@@ -245,13 +245,13 @@ namespace NovaCad.Viewport
             Vector4 clipSpace = new Vector4(ndcX, ndcY, -1.0f, 1.0f);
             
             // To view space
-            Matrix4x4 invProjection = Matrix4x4.Invert(GetProjectionMatrix());
+            Matrix4x4.Invert(GetProjectionMatrix(), out Matrix4x4 invProjection);
             Vector4 viewSpace = Vector4.Transform(clipSpace, invProjection);
             viewSpace.Z = -1.0f;
             viewSpace.W = 0.0f;
             
             // To world space
-            Matrix4x4 invView = Matrix4x4.Invert(GetViewMatrix());
+            Matrix4x4.Invert(GetViewMatrix(), out Matrix4x4 invView);
             Vector4 worldSpace = Vector4.Transform(viewSpace, invView);
             Vector3 rayDir = new Vector3(worldSpace.X, worldSpace.Y, worldSpace.Z);
             rayDir = Vector3.Normalize(rayDir);

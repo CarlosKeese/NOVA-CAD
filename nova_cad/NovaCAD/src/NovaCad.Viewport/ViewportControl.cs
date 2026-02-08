@@ -39,7 +39,6 @@ namespace NovaCad.Viewport
         public ViewportControl()
         {
             Focusable = true;
-            Background = new SolidColorBrush(Colors.Transparent);
         }
 
         protected override IPlatformHandle CreateNativeControlCore(IPlatformHandle parent)
@@ -56,13 +55,13 @@ namespace NovaCad.Viewport
             try
             {
                 // Create OpenGL context using Silk.NET
-                var window = Silk.NET.Windowing.Window.Create(new WindowOptions
-                {
-                    Size = new Silk.NET.Maths.Vector2D<int>((int)Bounds.Width, (int)Bounds.Height),
-                    Title = "NovaCAD Viewport",
-                    API = GraphicsAPI.Default,
-                    VSync = true
-                });
+                var options = Silk.NET.Windowing.WindowOptions.Default;
+                options.Size = new Silk.NET.Maths.Vector2D<int>((int)Bounds.Width, (int)Bounds.Height);
+                options.Title = "NovaCAD Viewport";
+                options.API = Silk.NET.Windowing.GraphicsAPI.Default;
+                options.VSync = true;
+                
+                var window = Silk.NET.Windowing.Window.Create(options);
 
                 _gl = GL.GetApi(window);
                 
@@ -98,7 +97,7 @@ namespace NovaCad.Viewport
             // Create meshes from document bodies
             foreach (var bodyRef in document.Bodies)
             {
-                var mesh = Mesh.FromBody(bodyRef, _gl!);
+                var mesh = Mesh.FromBody(new NovaCad.Kernel.NovaKernel.NovaHandle(bodyRef.GetKernelHandleValue()), _gl!);
                 _viewport.AddMesh(mesh);
             }
 
@@ -144,10 +143,10 @@ namespace NovaCad.Viewport
             var point = e.GetPosition(this);
             var button = e.GetCurrentPoint(this).Properties.PointerUpdateKind switch
             {
-                PointerUpdateKind.LeftButtonPressed => MouseButton.Left,
-                PointerUpdateKind.MiddleButtonPressed => MouseButton.Middle,
-                PointerUpdateKind.RightButtonPressed => MouseButton.Right,
-                _ => MouseButton.Left
+                PointerUpdateKind.LeftButtonPressed => ViewportMouseButton.Left,
+                PointerUpdateKind.MiddleButtonPressed => ViewportMouseButton.Middle,
+                PointerUpdateKind.RightButtonPressed => ViewportMouseButton.Right,
+                _ => ViewportMouseButton.Left
             };
 
             _viewport.OnMouseDown(button, (int)point.X, (int)point.Y);
@@ -180,10 +179,10 @@ namespace NovaCad.Viewport
 
             var button = e.InitialPressMouseButton switch
             {
-                MouseButton.Left => Viewport.MouseButton.Left,
-                MouseButton.Middle => Viewport.MouseButton.Middle,
-                MouseButton.Right => Viewport.MouseButton.Right,
-                _ => Viewport.MouseButton.Left
+                Avalonia.Input.MouseButton.Left => ViewportMouseButton.Left,
+                Avalonia.Input.MouseButton.Middle => ViewportMouseButton.Middle,
+                Avalonia.Input.MouseButton.Right => ViewportMouseButton.Right,
+                _ => ViewportMouseButton.Left
             };
 
             _viewport.OnMouseUp(button);
@@ -222,11 +221,8 @@ namespace NovaCad.Viewport
 
         private void OnViewportEntityPicked(object? sender, ViewportClickEventArgs e)
         {
-            RaiseEvent(new ViewportClickEventArgs(e.EntityId, e.X, e.Y)
-            {
-                RoutedEvent = EntityPickedEvent,
-                Source = this
-            });
+            var args = new ViewportClickEventArgs(e.EntityId, e.X, e.Y);
+            RaiseEvent(args);
         }
 
         public void Dispose()

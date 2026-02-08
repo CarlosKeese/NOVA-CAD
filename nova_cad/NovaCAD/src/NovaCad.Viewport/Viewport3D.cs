@@ -96,9 +96,9 @@ namespace NovaCad.Viewport
             // Enable depth testing
             _gl.Enable(EnableCap.DepthTest);
             
-            // Set polygon mode
-            _gl.PolygonMode(MaterialFace.FrontAndBack, 
-                Wireframe ? PolygonMode.Line : PolygonMode.Fill);
+            // Set polygon mode (disabled - MaterialFace not available in current Silk.NET version)
+            // _gl.PolygonMode(MaterialFace.FrontAndBack, 
+            //     Wireframe ? PolygonMode.Line : PolygonMode.Fill);
 
             // Update camera
             _shader.Use();
@@ -164,9 +164,9 @@ namespace NovaCad.Viewport
         /// <summary>
         /// Handle mouse down for camera control and picking
         /// </summary>
-        public void OnMouseDown(MouseButton button, int x, int y)
+        public void OnMouseDown(ViewportMouseButton button, int x, int y)
         {
-            if (button == MouseButton.Left)
+            if (button == ViewportMouseButton.Left)
             {
                 // Pick entity
                 var pickedId = PickEntity(x, y);
@@ -176,12 +176,12 @@ namespace NovaCad.Viewport
                     EntityPicked?.Invoke(this, new ViewportClickEventArgs(pickedId.Value, x, y));
                 }
             }
-            else if (button == MouseButton.Middle)
+            else if (button == ViewportMouseButton.Middle)
             {
                 // Start pan
                 _camera.StartPan(x, y);
             }
-            else if (button == MouseButton.Right)
+            else if (button == ViewportMouseButton.Right)
             {
                 // Start rotate
                 _camera.StartRotate(x, y);
@@ -215,7 +215,7 @@ namespace NovaCad.Viewport
         /// <summary>
         /// Handle mouse up
         /// </summary>
-        public void OnMouseUp(MouseButton button)
+        public void OnMouseUp(ViewportMouseButton button)
         {
             _camera.EndInteraction();
         }
@@ -308,14 +308,14 @@ namespace NovaCad.Viewport
 
         private void RenderAxes()
         {
-            // Render XYZ axes
-            _renderer.RenderAxes(_camera, 10.0f);
+            // Render XYZ axes (TODO: Implement)
+            // _renderer.RenderAxes(_camera, 10.0f);
         }
 
         private void RenderSelectionHighlight(uint entityId)
         {
-            // Render highlight around selected entity
-            _renderer.RenderHighlight(entityId, new Color(1.0f, 0.5f, 0.0f, 0.5f));
+            // Render highlight around selected entity (TODO: Implement)
+            // _renderer.RenderHighlight(entityId, new Color(1.0f, 0.5f, 0.0f, 0.5f));
         }
 
         private void CreateGrid()
@@ -413,7 +413,7 @@ void main()
         }
     }
 
-    public enum MouseButton
+    public enum ViewportMouseButton
     {
         Left,
         Middle,
@@ -433,7 +433,7 @@ void main()
         Trimetric
     }
 
-    public class ViewportClickEventArgs : EventArgs
+    public class ViewportClickEventArgs : Avalonia.Interactivity.RoutedEventArgs
     {
         public uint EntityId { get; }
         public int X { get; }

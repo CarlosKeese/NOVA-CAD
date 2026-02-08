@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:NovaCad.App.ViewModels"
+        xmlns:models="using:NovaCad.Core.Models"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
@@ -59,8 +60,8 @@
         </Menu>
 
         <!-- Toolbar -->
-        <ToolBarTray DockPanel.Dock="Top" Background="{StaticResource RibbonBackgroundBrush}">
-            <ToolBar>
+        <StackPanel DockPanel.Dock="Top" Background="{StaticResource RibbonBackgroundBrush}" Orientation="Horizontal" Spacing="5" Margin="5">
+            <StackPanel Orientation="Horizontal" Spacing="2">
                 <Button Command="{Binding NewDocumentCommand}" ToolTip.Tip="New (Ctrl+N)">
                     <PathIcon Data="M4,4 H20 V20 H4 Z M6,6 V18 H18 V6 Z" />
                 </Button>
@@ -70,16 +71,18 @@
                 <Button Command="{Binding SaveDocumentCommand}" ToolTip.Tip="Save (Ctrl+S)">
                     <PathIcon Data="M4,4 H16 L18,6 V20 H4 Z M6,6 V10 H14 V6 Z" />
                 </Button>
-            </ToolBar>
-            <ToolBar>
+            </StackPanel>
+            <Rectangle Width="1" Fill="Gray" Margin="5,0" />
+            <StackPanel Orientation="Horizontal" Spacing="2">
                 <Button Command="{Binding UndoCommand}" ToolTip.Tip="Undo (Ctrl+Z)">
                     <PathIcon Data="M12,5 V9 L4,7 Z M4,7 L12,5 V9 Z" />
                 </Button>
                 <Button Command="{Binding RedoCommand}" ToolTip.Tip="Redo (Ctrl+Y)">
                     <PathIcon Data="M12,5 V9 L20,7 Z" />
                 </Button>
-            </ToolBar>
-            <ToolBar>
+            </StackPanel>
+            <Rectangle Width="1" Fill="Gray" Margin="5,0" />
+            <StackPanel Orientation="Horizontal" Spacing="2">
                 <Button Command="{Binding CreateBoxCommand}" ToolTip.Tip="Create Box">
                     <PathIcon Data="M2,2 H22 V22 H2 Z M4,4 V20 H20 V4 Z" />
                 </Button>
@@ -89,8 +92,9 @@
                 <Button Command="{Binding CreateSphereCommand}" ToolTip.Tip="Create Sphere">
                     <Ellipse Width="16" Height="16" Fill="White" Stroke="Gray" />
                 </Button>
-            </ToolBar>
-            <ToolBar>
+            </StackPanel>
+            <Rectangle Width="1" Fill="Gray" Margin="5,0" />
+            <StackPanel Orientation="Horizontal" Spacing="2">
                 <Button Command="{Binding FitAllCommand}" ToolTip.Tip="Fit All (F)">
                     <PathIcon Data="M4,4 H8 V6 H6 V8 H4 Z M16,4 V8 H14 V6 H12 V4 Z M4,16 V20 H8 V18 H6 V16 Z M16,16 H14 V18 H12 V20 H16 Z" />
                 </Button>
@@ -103,8 +107,8 @@
                 <Button Command="{Binding SetViewIsoCommand}" ToolTip.Tip="Isometric View">
                     <TextBlock Text="Iso" FontSize="10" />
                 </Button>
-            </ToolBar>
-        </ToolBarTray>
+            </StackPanel>
+        </StackPanel>
 
         <!-- Main Content -->
         <Grid ColumnDefinitions="250,*,280">

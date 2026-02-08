@@ -7,7 +7,7 @@ namespace NovaCad.Viewport
     /// <summary>
     /// Helper renderer for drawing common elements
     /// </summary>
-    public class Renderer : IDisposable
+    public unsafe class Renderer : IDisposable
     {
         private GL _gl;
         private Shader _lineShader;
@@ -89,67 +89,19 @@ void main()
                 vertices.Add(size);
             }
 
-            DrawLines(vertices.ToArray(), new Color(0.3f, 0.3f, 0.3f, 1.0f), camera);
-        }
-
-        /// <summary>
-        /// Render XYZ axes
-        /// </summary>
-        public void RenderAxes(Camera3D camera, float length)
-        {
-            // X axis (red)
-            DrawLine(Vector3.Zero, new Vector3(length, 0, 0), Color.Red, camera);
-            
-            // Y axis (green)
-            DrawLine(Vector3.Zero, new Vector3(0, length, 0), Color.Green, camera);
-            
-            // Z axis (blue)
-            DrawLine(Vector3.Zero, new Vector3(0, 0, length), Color.Blue, camera);
-        }
-
-        /// <summary>
-        /// Render selection highlight
-        /// </summary>
-        public void RenderHighlight(uint entityId, Color color)
-        {
-            // TODO: Implement selection highlight rendering
-        }
-
-        /// <summary>
-        /// Draw a single line
-        /// </summary>
-        public void DrawLine(Vector3 start, Vector3 end, Color color, Camera3D camera)
-        {
-            float[] vertices =
+            // Upload and draw
+            var vertexArray = vertices.ToArray();
+            fixed (float* ptr = vertexArray)
             {
-                start.X, start.Y, start.Z,
-                end.X, end.Y, end.Z
-            };
-
-            DrawLines(vertices, color, camera, PrimitiveType.Lines);
-        }
-
-        /// <summary>
-        /// Draw multiple lines
-        /// </summary>
-        public void DrawLines(float[] vertices, Color color, Camera3D camera, PrimitiveType mode = PrimitiveType.Lines)
-        {
-            if (vertices.Length == 0) return;
+                _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _lineVbo);
+                _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(vertexArray.Length * sizeof(float)), ptr, BufferUsageARB.StreamDraw);
+            }
 
             _lineShader.Use();
+            // TODO: Set uniforms for line shader
 
-            // Calculate MVP matrix
-            var mvp = camera.GetViewMatrix() * camera.GetProjectionMatrix();
-            _lineShader.SetMatrix4("uMVP", mvp);
-            _lineShader.SetVector4("uColor", color.ToVector4());
-
-            // Upload vertices
-            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _lineVbo);
-            _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(vertices.Length * sizeof(float)), vertices, BufferUsageARB.StreamDraw);
-
-            // Draw
             _gl.BindVertexArray(_lineVao);
-            _gl.DrawArrays(mode, 0, (uint)(vertices.Length / 3));
+            _gl.DrawArrays(PrimitiveType.Lines, 0, (uint)(vertexArray.Length / 3));
             _gl.BindVertexArray(0);
         }
 
@@ -158,11 +110,10 @@ void main()
             if (_disposed) return;
 
             _lineShader?.Dispose();
-            _gl.DeleteVertexArray(_lineVao);
             _gl.DeleteBuffer(_lineVbo);
+            _gl.DeleteVertexArray(_lineVao);
 
             _disposed = true;
-            GC.SuppressFinalize(this);
         }
     }
 }

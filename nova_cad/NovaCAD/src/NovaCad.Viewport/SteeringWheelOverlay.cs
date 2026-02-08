@@ -9,7 +9,7 @@ namespace NovaCad.Viewport
     /// <summary>
     /// 3D Steering Wheel overlay for direct manipulation
     /// </summary>
-    public class SteeringWheelOverlay : IDisposable
+    public unsafe class SteeringWheelOverlay : IDisposable
     {
         private GL _gl;
         private Shader _shader;
@@ -28,37 +28,44 @@ namespace NovaCad.Viewport
         
         // Interaction
         public SteeringWheelMode Mode { get; set; } = SteeringWheelMode.Idle;
-        public SteeringWheelHandle? SelectedHandle { get; set; }
-        public SteeringWheelHandle? HoveredHandle { get; set; }
+        public SteeringHandle? ActiveHandle { get; set; }
         
         // Events
-        public event EventHandler<SteeringWheelDragEventArgs>? DragStarted;
-        public event EventHandler<SteeringWheelDragEventArgs>? Dragging;
-        public event EventHandler<SteeringWheelDragEventArgs>? DragEnded;
-        public event EventHandler<SteeringWheelActionEventArgs>? ActionTriggered;
-
+        public event Action<Vector3>? OnTranslate;
+        public event Action<Vector3, float>? OnRotate;
+        
         public SteeringWheelOverlay(GL gl)
         {
             _gl = gl;
             Initialize();
         }
-
+        
         private void Initialize()
         {
-            // Create shader for wheel rendering
-            _shader = new Shader(_gl, GetVertexShader(), GetFragmentShader());
+            // Initialize axes
+            PrimaryAxis = Vector3.UnitX;
+            SecondaryAxis = Vector3.UnitY;
+            TertiaryAxis = Vector3.UnitZ;
             
-            // Create geometry buffers
-            CreateWheelGeometry();
+            // Create shader
+            _shader = new Shader(_gl, 
+                @"#version 330 core
+                layout(location = 0) in vec3 aPos;
+                layout(location = 1) in vec3 aColor;
+                uniform mat4 mvp;
+                out vec3 vColor;
+                void main() {
+                    gl_Position = mvp * vec4(aPos, 1.0);
+                    vColor = aColor;
+                }",
+                @"#version 330 core
+                in vec3 vColor;
+                out vec4 FragColor;
+                void main() {
+                    FragColor = vec4(vColor, 1.0);
+                }");
             
-            // Default orientation
-            PrimaryAxis = Vector3.UnitZ;
-            SecondaryAxis = Vector3.UnitX;
-            TertiaryAxis = Vector3.UnitY;
-        }
-
-        private void CreateWheelGeometry()
-        {
+            // Create VAO/VBO
             _vao = _gl.GenVertexArray();
             _vbo = _gl.GenBuffer();
             
@@ -69,398 +76,115 @@ namespace NovaCad.Viewport
             _gl.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), (void*)0);
             _gl.EnableVertexAttribArray(0);
             
-            // Color attribute
+            // Color attribute  
             _gl.VertexAttribPointer(1, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), (void*)(3 * sizeof(float)));
             _gl.EnableVertexAttribArray(1);
             
             _gl.BindVertexArray(0);
         }
-
+        
         /// <summary>
         /// Render the steering wheel
         /// </summary>
-        public void Render(Camera3D camera)
+        public void Render(Matrix4x4 viewProjMatrix)
         {
-            if (!Visible || !Active) return;
-
+            if (!Visible) return;
+            
             _shader.Use();
+            _shader.SetMatrix4("mvp", viewProjMatrix);
             
-            // Set uniforms
-            _shader.SetMatrix4("uView", camera.GetViewMatrix());
-            _shader.SetMatrix4("uProjection", camera.GetProjectionMatrix());
-            _shader.SetVector3("uWheelCenter", Position);
-            _shader.SetFloat("uRadius", Radius);
-            _shader.SetVector3("uPrimaryAxis", PrimaryAxis);
-            _shader.SetVector3("uSecondaryAxis", SecondaryAxis);
-            _shader.SetVector3("uTertiaryAxis", TertiaryAxis);
-
-            // Draw torus for each axis
-            DrawAxisRing(PrimaryAxis, new Color(0.0f, 0.0f, 1.0f, 1.0f), camera);    // Z - Blue
-            DrawAxisRing(SecondaryAxis, new Color(1.0f, 0.0f, 0.0f, 1.0f), camera);   // X - Red
-            DrawAxisRing(TertiaryAxis, new Color(0.0f, 1.0f, 0.0f, 1.0f), camera);    // Y - Green
+            // Draw primary axis (red)
+            DrawAxis(PrimaryAxis, new Color(1, 0, 0, 1));
             
-            // Draw handles
-            DrawHandle(Position + PrimaryAxis * Radius, new Color(0.0f, 0.0f, 1.0f, 1.0f), 
-                HoveredHandle == SteeringWheelHandle.PrimaryAxis);
-            DrawHandle(Position + SecondaryAxis * Radius, new Color(1.0f, 0.0f, 0.0f, 1.0f),
-                HoveredHandle == SteeringWheelHandle.SecondaryAxis);
-            DrawHandle(Position + TertiaryAxis * Radius, new Color(0.0f, 1.0f, 0.0f, 1.0f),
-                HoveredHandle == SteeringWheelHandle.TertiaryAxis);
+            // Draw secondary axis (green)
+            DrawAxis(SecondaryAxis, new Color(0, 1, 0, 1));
             
-            // Draw plane handle
-            Vector3 planePos = Position + (PrimaryAxis + SecondaryAxis) * Radius * 0.7f;
-            DrawPlaneHandle(planePos, new Color(1.0f, 1.0f, 0.0f, 0.8f),
-                HoveredHandle == SteeringWheelHandle.Plane);
+            // Draw tertiary axis (blue)
+            DrawAxis(TertiaryAxis, new Color(0, 0, 1, 1));
         }
-
-        private void DrawAxisRing(Vector3 axis, Color color, Camera3D camera)
+        
+        private void DrawAxis(Vector3 direction, Color color)
         {
-            // Generate ring vertices
-            const int segments = 64;
-            var vertices = new float[segments * 6];
-            
-            Vector3 perp1 = GetPerpendicular(axis);
-            Vector3 perp2 = Vector3.Cross(axis, perp1);
-            
-            for (int i = 0; i < segments; i++)
-            {
-                float angle = (float)i / segments * MathF.PI * 2;
-                float x = MathF.Cos(angle);
-                float y = MathF.Sin(angle);
-                
-                Vector3 pos = Position + (perp1 * x + perp2 * y) * Radius;
-                
-                int idx = i * 6;
-                vertices[idx] = pos.X;
-                vertices[idx + 1] = pos.Y;
-                vertices[idx + 2] = pos.Z;
-                vertices[idx + 3] = color.R;
-                vertices[idx + 4] = color.G;
-                vertices[idx + 5] = color.B;
-            }
-            
-            // Upload and draw
-            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
-            _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(vertices.Length * sizeof(float)), vertices, BufferUsageARB.StreamDraw);
-            
-            _gl.BindVertexArray(_vao);
-            _gl.DrawArrays(PrimitiveType.LineLoop, 0, (uint)segments);
-            _gl.BindVertexArray(0);
+            // TODO: Implement axis drawing
         }
-
+        
         private void DrawHandle(Vector3 position, Color color, bool highlighted)
         {
-            float size = highlighted ? 3.0f : 2.0f;
-            
-            // Draw a small sphere/cube at handle position
-            var vertices = CreateCubeVertices(position, size, color);
-            
-            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
-            _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(vertices.Length * sizeof(float)), vertices, BufferUsageARB.StreamDraw);
-            
-            _gl.BindVertexArray(_vao);
-            _gl.DrawArrays(PrimitiveType.Triangles, 0, (uint)(vertices.Length / 6));
-            _gl.BindVertexArray(0);
+            // TODO: Implement handle drawing
         }
-
+        
         private void DrawPlaneHandle(Vector3 position, Color color, bool highlighted)
         {
-            float size = highlighted ? 4.0f : 3.0f;
-            
-            // Draw a small square for plane manipulation
-            var vertices = CreateSquareVertices(position, size, color);
-            
-            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
-            _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(vertices.Length * sizeof(float)), vertices, BufferUsageARB.StreamDraw);
-            
-            _gl.BindVertexArray(_vao);
-            _gl.DrawArrays(PrimitiveType.TriangleFan, 0, 4);
-            _gl.BindVertexArray(0);
+            // TODO: Implement plane handle drawing
         }
-
+        
         /// <summary>
         /// Handle mouse down on wheel
         /// </summary>
         public bool OnMouseDown(Vector3 worldPos, Vector2 screenPos)
         {
             if (!Visible || !Active) return false;
-
-            var handle = PickHandle(worldPos);
-            if (handle.HasValue)
-            {
-                SelectedHandle = handle;
-                Mode = GetModeFromHandle(handle.Value);
-                
-                DragStarted?.Invoke(this, new SteeringWheelDragEventArgs
-                {
-                    Handle = handle.Value,
-                    StartPosition = worldPos,
-                    CurrentPosition = worldPos,
-                    Mode = Mode
-                });
-                
-                return true;
-            }
-            
-            return false;
+            return false; // TODO: Implement
         }
-
+        
         /// <summary>
-        /// Handle mouse move on wheel
+        /// Handle mouse move
         /// </summary>
         public bool OnMouseMove(Vector3 worldPos, Vector2 screenPos)
         {
-            if (!Visible || !Active) return false;
-
-            if (SelectedHandle.HasValue && Mode != SteeringWheelMode.Idle)
-            {
-                Dragging?.Invoke(this, new SteeringWheelDragEventArgs
-                {
-                    Handle = SelectedHandle.Value,
-                    StartPosition = Position,
-                    CurrentPosition = worldPos,
-                    Mode = Mode,
-                    Delta = worldPos - Position
-                });
-                
-                return true;
-            }
-            else
-            {
-                // Update hover state
-                HoveredHandle = PickHandle(worldPos);
-                return HoveredHandle.HasValue;
-            }
+            if (!Visible || !Active || Mode == SteeringWheelMode.Idle) return false;
+            return false; // TODO: Implement
         }
-
+        
         /// <summary>
-        /// Handle mouse up on wheel
+        /// Handle mouse up
         /// </summary>
-        public bool OnMouseUp(Vector3 worldPos)
+        public void OnMouseUp()
         {
-            if (SelectedHandle.HasValue)
-            {
-                DragEnded?.Invoke(this, new SteeringWheelDragEventArgs
-                {
-                    Handle = SelectedHandle.Value,
-                    StartPosition = Position,
-                    CurrentPosition = worldPos,
-                    Mode = Mode
-                });
-                
-                SelectedHandle = null;
-                Mode = SteeringWheelMode.Idle;
-                return true;
-            }
-            
-            return false;
+            Mode = SteeringWheelMode.Idle;
+            ActiveHandle = null;
         }
-
+        
         /// <summary>
-        /// Pick a handle at world position
+        /// Set wheel orientation from normal and reference direction
         /// </summary>
-        private SteeringWheelHandle? PickHandle(Vector3 worldPos)
+        public void SetOrientation(Vector3 normal, Vector3 refDirection)
         {
-            float tolerance = Radius * 0.15f;
-            
-            // Check primary axis handle
-            if (Vector3.Distance(worldPos, Position + PrimaryAxis * Radius) < tolerance)
-                return SteeringWheelHandle.PrimaryAxis;
-            
-            // Check secondary axis handle
-            if (Vector3.Distance(worldPos, Position + SecondaryAxis * Radius) < tolerance)
-                return SteeringWheelHandle.SecondaryAxis;
-            
-            // Check tertiary axis handle
-            if (Vector3.Distance(worldPos, Position + TertiaryAxis * Radius) < tolerance)
-                return SteeringWheelHandle.TertiaryAxis;
-            
-            // Check plane handle
-            Vector3 planePos = Position + (PrimaryAxis + SecondaryAxis) * Radius * 0.7f;
-            if (Vector3.Distance(worldPos, planePos) < tolerance)
-                return SteeringWheelHandle.Plane;
-            
+            TertiaryAxis = Vector3.Normalize(normal);
+            PrimaryAxis = Vector3.Normalize(refDirection);
+            SecondaryAxis = Vector3.Cross(TertiaryAxis, PrimaryAxis);
+        }
+        
+        private SteeringHandle? PickHandle(Vector3 worldPos)
+        {
+            // TODO: Implement handle picking
             return null;
         }
-
-        private SteeringWheelMode GetModeFromHandle(SteeringWheelHandle handle)
-        {
-            return handle switch
-            {
-                SteeringWheelHandle.PrimaryAxis => SteeringWheelMode.MovePrimary,
-                SteeringWheelHandle.SecondaryAxis => SteeringWheelMode.MoveSecondary,
-                SteeringWheelHandle.TertiaryAxis => SteeringWheelMode.MoveTertiary,
-                SteeringWheelHandle.Plane => SteeringWheelMode.MovePlane,
-                _ => SteeringWheelMode.Idle
-            };
-        }
-
-        /// <summary>
-        /// Relocate wheel to new position
-        /// </summary>
-        public void Relocate(Vector3 newPosition)
-        {
-            Position = newPosition;
-        }
-
-        /// <summary>
-        /// Orient wheel to align with normal
-        /// </summary>
-        public void Orient(Vector3 normal)
-        {
-            PrimaryAxis = Vector3.Normalize(normal);
-            
-            // Generate perpendicular axes
-            if (Math.Abs(Vector3.Dot(PrimaryAxis, Vector3.UnitZ)) < 0.9f)
-            {
-                SecondaryAxis = Vector3.Normalize(Vector3.Cross(PrimaryAxis, Vector3.UnitZ));
-            }
-            else
-            {
-                SecondaryAxis = Vector3.Normalize(Vector3.Cross(PrimaryAxis, Vector3.UnitY));
-            }
-            
-            TertiaryAxis = Vector3.Cross(PrimaryAxis, SecondaryAxis);
-        }
-
-        /// <summary>
-        /// Snap to nearest major axis
-        /// </summary>
-        public void SnapToMajorAxis()
-        {
-            Vector3[] majorAxes = new[]
-            {
-                Vector3.UnitX, -Vector3.UnitX,
-                Vector3.UnitY, -Vector3.UnitY,
-                Vector3.UnitZ, -Vector3.UnitZ
-            };
-            
-            float maxDot = -1;
-            Vector3 closest = Vector3.UnitZ;
-            
-            foreach (var axis in majorAxes)
-            {
-                float dot = Math.Abs(Vector3.Dot(PrimaryAxis, axis));
-                if (dot > maxDot)
-                {
-                    maxDot = dot;
-                    closest = axis;
-                }
-            }
-            
-            Orient(closest);
-        }
-
-        private Vector3 GetPerpendicular(Vector3 v)
-        {
-            if (Math.Abs(v.X) < Math.Abs(v.Y) && Math.Abs(v.X) < Math.Abs(v.Z))
-                return Vector3.Normalize(Vector3.Cross(v, Vector3.UnitX));
-            else if (Math.Abs(v.Y) < Math.Abs(v.Z))
-                return Vector3.Normalize(Vector3.Cross(v, Vector3.UnitY));
-            else
-                return Vector3.Normalize(Vector3.Cross(v, Vector3.UnitZ));
-        }
-
-        private float[] CreateCubeVertices(Vector3 center, float size, Color color)
-        {
-            float h = size / 2;
-            // Simplified cube vertices
-            return new float[]
-            {
-                // Front face
-                center.X - h, center.Y - h, center.Z + h, color.R, color.G, color.B,
-                center.X + h, center.Y - h, center.Z + h, color.R, color.G, color.B,
-                center.X + h, center.Y + h, center.Z + h, color.R, color.G, color.B,
-                center.X + h, center.Y + h, center.Z + h, color.R, color.G, color.B,
-                center.X - h, center.Y + h, center.Z + h, color.R, color.G, color.B,
-                center.X - h, center.Y - h, center.Z + h, color.R, color.G, color.B,
-            };
-        }
-
-        private float[] CreateSquareVertices(Vector3 center, float size, Color color)
-        {
-            float h = size / 2;
-            return new float[]
-            {
-                center.X - h, center.Y, center.Z - h, color.R, color.G, color.B,
-                center.X + h, center.Y, center.Z - h, color.R, color.G, color.B,
-                center.X + h, center.Y, center.Z + h, color.R, color.G, color.B,
-                center.X - h, center.Y, center.Z + h, color.R, color.G, color.B,
-            };
-        }
-
-        private string GetVertexShader()
-        {
-            return @"
-#version 330 core
-layout (location = 0) in vec3 aPosition;
-layout (location = 1) in vec3 aColor;
-uniform mat4 uView;
-uniform mat4 uProjection;
-out vec3 vColor;
-void main()
-{
-    gl_Position = uProjection * uView * vec4(aPosition, 1.0);
-    vColor = aColor;
-}
-";
-        }
-
-        private string GetFragmentShader()
-        {
-            return @"
-#version 330 core
-in vec3 vColor;
-out vec4 FragColor;
-void main()
-{
-    FragColor = vec4(vColor, 1.0);
-}
-";
-        }
-
+        
         public void Dispose()
         {
             _shader?.Dispose();
-            if (_vao != 0) _gl.DeleteVertexArray(_vao);
-            if (_vbo != 0) _gl.DeleteBuffer(_vbo);
-            GC.SuppressFinalize(this);
+            _gl.DeleteBuffer(_vbo);
+            _gl.DeleteVertexArray(_vao);
         }
     }
-
-    public enum SteeringWheelHandle
-    {
-        PrimaryAxis,
-        SecondaryAxis,
-        TertiaryAxis,
-        Plane,
-        RotationRing
-    }
-
+    
     public enum SteeringWheelMode
     {
         Idle,
-        MovePrimary,
-        MoveSecondary,
-        MoveTertiary,
-        MovePlane,
-        RotatePrimary,
-        RotateSecondary,
-        RotateTertiary
+        Translating,
+        Rotating,
+        Relocating
     }
-
-    public class SteeringWheelDragEventArgs : EventArgs
+    
+    public enum SteeringHandle
     {
-        public SteeringWheelHandle Handle { get; set; }
-        public Vector3 StartPosition { get; set; }
-        public Vector3 CurrentPosition { get; set; }
-        public Vector3 Delta { get; set; }
-        public SteeringWheelMode Mode { get; set; }
-    }
-
-    public class SteeringWheelActionEventArgs : EventArgs
-    {
-        public string Action { get; set; }
-        public Vector3? Position { get; set; }
+        AxisX,
+        AxisY,
+        AxisZ,
+        PlaneXY,
+        PlaneYZ,
+        PlaneZX,
+        Torus
     }
 }

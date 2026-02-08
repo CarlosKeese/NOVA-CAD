@@ -9,7 +9,7 @@ namespace NovaCad.Viewport
     /// <summary>
     /// Mesh for 3D rendering
     /// </summary>
-    public class Mesh : IDisposable
+    public unsafe class Mesh : IDisposable
     {
         private GL _gl;
         private uint _vao;
@@ -83,7 +83,10 @@ namespace NovaCad.Viewport
             
             // Upload vertex data
             var vertexData = GetVertexData();
-            gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(vertexData.Length * sizeof(float)), vertexData, BufferUsageARB.StaticDraw);
+            fixed (float* ptr = vertexData)
+            {
+                gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(vertexData.Length * sizeof(float)), ptr, BufferUsageARB.StaticDraw);
+            }
 
             // Create EBO
             _ebo = gl.GenBuffer();
@@ -92,7 +95,10 @@ namespace NovaCad.Viewport
             // Upload index data
             var indexData = Indices.ToArray();
             _indexCount = indexData.Length;
-            gl.BufferData(BufferTargetARB.ElementArrayBuffer, (nuint)(indexData.Length * sizeof(uint)), indexData, BufferUsageARB.StaticDraw);
+            fixed (uint* ptr = indexData)
+            {
+                gl.BufferData(BufferTargetARB.ElementArrayBuffer, (nuint)(indexData.Length * sizeof(uint)), ptr, BufferUsageARB.StaticDraw);
+            }
 
             // Set up vertex attributes
             // Position (3 floats)
@@ -136,7 +142,10 @@ namespace NovaCad.Viewport
 
             gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
             var vertexData = GetVertexData();
-            gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(vertexData.Length * sizeof(float)), vertexData, BufferUsageARB.StaticDraw);
+            fixed (float* ptr = vertexData)
+            {
+                gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(vertexData.Length * sizeof(float)), ptr, BufferUsageARB.StaticDraw);
+            }
             gl.BindBuffer(BufferTargetARB.ArrayBuffer, 0);
 
             _bboxDirty = true;

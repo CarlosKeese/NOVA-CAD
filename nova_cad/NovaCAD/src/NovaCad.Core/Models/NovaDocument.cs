@@ -198,6 +198,14 @@ namespace NovaCad.Core.Models
                 KernelHandle = 0;
             }
         }
+
+        /// <summary>
+        /// Get the kernel handle value
+        /// </summary>
+        public ulong GetKernelHandleValue()
+        {
+            return KernelHandle;
+        }
     }
 
     /// <summary>
