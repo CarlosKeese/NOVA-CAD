@@ -16,7 +16,7 @@ nova_io = { path = "../nova_io" }
 nova_tess = { path = "../nova_tess" }
 nova_check = { path = "../nova_check" }
 nova_sync = { path = "../nova_sync" }
-nova_ffi = { path = "../nova_ffi" }
+# nova_ffi = { path = "../nova_ffi" }  # Temporarily disabled due to MSVC linking issues
 
 [dev-dependencies]
 criterion = { workspace = true }

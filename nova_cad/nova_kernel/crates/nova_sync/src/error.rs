@@ -65,6 +65,10 @@ pub enum SyncError {
     /// Operation not supported
     #[error("Operation not supported: {0}")]
     NotSupported(String),
+    
+    /// Feature not implemented
+    #[error("Not implemented: {0}")]
+    NotImplemented(String),
 }
 
 impl From<TopologyError> for SyncError {

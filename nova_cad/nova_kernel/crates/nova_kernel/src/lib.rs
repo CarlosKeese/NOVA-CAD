@@ -12,7 +12,7 @@
 //! - `tess`: Tessellation for rendering
 //! - `check`: Validation and healing
 //! - `sync`: Direct editing (Synchronous Technology)
-//! - `ffi`: C FFI for interop with other languages
+//! - `ffi`: C FFI for interop with other languages (temporarily disabled)
 
 #![warn(missing_docs)]
 #![warn(rust_2018_idioms)]
@@ -26,7 +26,7 @@ pub use nova_io;
 pub use nova_tess;
 pub use nova_check;
 pub use nova_sync;
-pub use nova_ffi;
+// pub use nova_ffi;  // Temporarily disabled due to MSVC linking issues
 
 /// Version of the Nova Kernel
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
