@@ -11,20 +11,25 @@ namespace NovaCad.Viewport
     /// <summary>
     /// 3D Viewport for rendering CAD geometry using OpenGL
     /// </summary>
-    public class Viewport3D : IDisposable
+    public unsafe class Viewport3D : IDisposable
     {
         private GL _gl;
-        private uint _vao;
-        private uint _vbo;
-        private uint _ebo;
-        private uint _shaderProgram;
-        
         private Camera3D _camera;
         private Renderer _renderer;
-        private Shader _shader;
         
         private List<Mesh> _meshes;
         private bool _disposed;
+        
+        // Grid rendering
+        private uint _gridVao;
+        private uint _gridVbo;
+        private int _gridVertexCount;
+        private Shader _gridShader;
+        
+        // Axes rendering
+        private uint _axesVao;
+        private uint _axesVbo;
+        private Shader _axesShader;
         
         // Viewport state
         public int Width { get; private set; }
@@ -39,9 +44,6 @@ namespace NovaCad.Viewport
         public bool ShowGrid { get; set; } = true;
         public bool ShowAxes { get; set; } = true;
         public bool Wireframe { get; set; } = false;
-        public bool ShowNormals { get; set; } = false;
-        public bool EnableLighting { get; set; } = true;
-        public bool EnableShadows { get; set; } = false;
         
         // Events
         public event EventHandler<ViewportClickEventArgs>? EntityPicked;
@@ -54,32 +56,186 @@ namespace NovaCad.Viewport
             Height = height;
             
             _meshes = new List<Mesh>();
-            _camera = new Camera3D(width, height);
-            _renderer = new Renderer(gl);
             
             Initialize();
         }
 
         private void Initialize()
         {
-            // Create shader
-            _shader = new Shader(_gl, GetVertexShaderSource(), GetFragmentShaderSource());
-            _shader.Use();
+            // Setup OpenGL state
+            _gl.Enable(EnableCap.DepthTest);
+            _gl.Enable(EnableCap.Blend);
+            _gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
             
-            // Create default meshes
+            // Initialize camera
+            _camera = new Camera3D(
+                new Vector3(10, 10, 10),  // Position
+                new Vector3(0, 0, 0),      // Target
+                Vector3.UnitY,             // Up
+                45.0f,                     // FOV
+                (float)Width / Height,     // Aspect
+                0.1f,                      // Near
+                1000.0f                    // Far
+            );
+            
+            // Initialize renderer
+            _renderer = new Renderer(_gl);
+            
+            // Create grid
             CreateGrid();
+            
+            // Create axes
             CreateAxes();
         }
 
-        /// <summary>
-        /// Resize the viewport
-        /// </summary>
-        public void Resize(int width, int height)
+        private void CreateGrid()
         {
-            Width = width;
-            Height = height;
-            _camera.Resize(width, height);
-            _gl.Viewport(0, 0, (uint)width, (uint)height);
+            // Grid shader
+            string vertexSource = @"
+#version 330 core
+layout (location = 0) in vec3 aPosition;
+layout (location = 1) in vec3 aColor;
+
+uniform mat4 uMVP;
+
+out vec3 vColor;
+
+void main()
+{
+    gl_Position = uMVP * vec4(aPosition, 1.0);
+    vColor = aColor;
+}
+";
+
+            string fragmentSource = @"
+#version 330 core
+in vec3 vColor;
+out vec4 FragColor;
+
+void main()
+{
+    FragColor = vec4(vColor, 1.0);
+}
+";
+
+            _gridShader = new Shader(_gl, vertexSource, fragmentSource);
+
+            // Generate grid vertices (lines on XZ plane)
+            float size = 50.0f;
+            float step = 5.0f;
+            var vertices = new List<float>();
+            
+            // Major grid lines (darker)
+            for (float i = -size; i <= size; i += step)
+            {
+                // Lines parallel to X axis
+                vertices.Add(-size); vertices.Add(0); vertices.Add(i);
+                vertices.Add(0.3f); vertices.Add(0.3f); vertices.Add(0.3f); // Color
+                vertices.Add(size); vertices.Add(0); vertices.Add(i);
+                vertices.Add(0.3f); vertices.Add(0.3f); vertices.Add(0.3f);
+                
+                // Lines parallel to Z axis
+                vertices.Add(i); vertices.Add(0); vertices.Add(-size);
+                vertices.Add(0.3f); vertices.Add(0.3f); vertices.Add(0.3f);
+                vertices.Add(i); vertices.Add(0); vertices.Add(size);
+                vertices.Add(0.3f); vertices.Add(0.3f); vertices.Add(0.3f);
+            }
+            
+            _gridVertexCount = vertices.Count / 6;
+            
+            // Create VAO/VBO
+            _gridVao = _gl.GenVertexArray();
+            _gridVbo = _gl.GenBuffer();
+            
+            _gl.BindVertexArray(_gridVao);
+            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _gridVbo);
+            
+            fixed (float* ptr = vertices.ToArray())
+            {
+                _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(vertices.Count * sizeof(float)), ptr, BufferUsageARB.StaticDraw);
+            }
+            
+            // Position attribute
+            _gl.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), (void*)0);
+            _gl.EnableVertexAttribArray(0);
+            
+            // Color attribute
+            _gl.VertexAttribPointer(1, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+            _gl.EnableVertexAttribArray(1);
+            
+            _gl.BindVertexArray(0);
+        }
+
+        private void CreateAxes()
+        {
+            // Axes shader
+            string vertexSource = @"
+#version 330 core
+layout (location = 0) in vec3 aPosition;
+layout (location = 1) in vec3 aColor;
+
+uniform mat4 uMVP;
+
+out vec3 vColor;
+
+void main()
+{
+    gl_Position = uMVP * vec4(aPosition, 1.0);
+    vColor = aColor;
+}
+";
+
+            string fragmentSource = @"
+#version 330 core
+in vec3 vColor;
+out vec4 FragColor;
+
+void main()
+{
+    FragColor = vec4(vColor, 1.0);
+}
+";
+
+            _axesShader = new Shader(_gl, vertexSource, fragmentSource);
+
+            // X (red), Y (green), Z (blue) axes
+            float axisLength = 2.0f;
+            var vertices = new float[]
+            {
+                // X axis - Red
+                0, 0, 0,  1, 0, 0,
+                axisLength, 0, 0,  1, 0, 0,
+                
+                // Y axis - Green
+                0, 0, 0,  0, 1, 0,
+                0, axisLength, 0,  0, 1, 0,
+                
+                // Z axis - Blue
+                0, 0, 0,  0, 0, 1,
+                0, 0, axisLength,  0, 0, 1,
+            };
+            
+            // Create VAO/VBO
+            _axesVao = _gl.GenVertexArray();
+            _axesVbo = _gl.GenBuffer();
+            
+            _gl.BindVertexArray(_axesVao);
+            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _axesVbo);
+            
+            fixed (float* ptr = vertices)
+            {
+                _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(vertices.Length * sizeof(float)), ptr, BufferUsageARB.StaticDraw);
+            }
+            
+            // Position attribute
+            _gl.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), (void*)0);
+            _gl.EnableVertexAttribArray(0);
+            
+            // Color attribute
+            _gl.VertexAttribPointer(1, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+            _gl.EnableVertexAttribArray(1);
+            
+            _gl.BindVertexArray(0);
         }
 
         /// <summary>
@@ -91,44 +247,65 @@ namespace NovaCad.Viewport
 
             // Clear
             _gl.ClearColor(BackgroundColor.R, BackgroundColor.G, BackgroundColor.B, BackgroundColor.A);
-            _gl.Clear((uint)(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit));
+            _gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             
             // Enable depth testing
             _gl.Enable(EnableCap.DepthTest);
-            
-            // Set polygon mode (disabled - MaterialFace not available in current Silk.NET version)
-            // _gl.PolygonMode(MaterialFace.FrontAndBack, 
-            //     Wireframe ? PolygonMode.Line : PolygonMode.Fill);
 
-            // Update camera
-            _shader.Use();
-            _shader.SetMatrix4("uView", _camera.GetViewMatrix());
-            _shader.SetMatrix4("uProjection", _camera.GetProjectionMatrix());
-            _shader.SetVector3("uCameraPosition", _camera.Position);
+            // Calculate view-projection matrix
+            Matrix4x4 viewProj = _camera.GetViewMatrix() * _camera.GetProjectionMatrix();
 
             // Render grid
             if (ShowGrid)
             {
-                RenderGrid();
+                RenderGrid(viewProj);
             }
 
             // Render axes
             if (ShowAxes)
             {
-                RenderAxes();
+                RenderAxes(viewProj);
             }
 
             // Render meshes
             foreach (var mesh in _meshes)
             {
-                RenderMesh(mesh);
+                if (mesh.IsVisible)
+                {
+                    mesh.Render(_gl);
+                }
             }
+        }
 
-            // Render selection highlight
-            if (SelectedEntityId.HasValue)
-            {
-                RenderSelectionHighlight(SelectedEntityId.Value);
-            }
+        private void RenderGrid(Matrix4x4 viewProj)
+        {
+            _gridShader.Use();
+            _gridShader.SetMatrix4("uMVP", viewProj);
+            
+            _gl.BindVertexArray(_gridVao);
+            _gl.DrawArrays(PrimitiveType.Lines, 0, (uint)_gridVertexCount);
+            _gl.BindVertexArray(0);
+        }
+
+        private void RenderAxes(Matrix4x4 viewProj)
+        {
+            _axesShader.Use();
+            _axesShader.SetMatrix4("uMVP", viewProj);
+            
+            _gl.BindVertexArray(_axesVao);
+            _gl.DrawArrays(PrimitiveType.Lines, 0, 6); // 6 vertices (3 axes * 2 points)
+            _gl.BindVertexArray(0);
+        }
+
+        /// <summary>
+        /// Resize viewport
+        /// </summary>
+        public void Resize(int width, int height)
+        {
+            Width = width;
+            Height = height;
+            _gl.Viewport(0, 0, (uint)width, (uint)height);
+            _camera.Aspect = (float)width / height;
         }
 
         /// <summary>
@@ -137,7 +314,6 @@ namespace NovaCad.Viewport
         public void AddMesh(Mesh mesh)
         {
             _meshes.Add(mesh);
-            mesh.Initialize(_gl);
         }
 
         /// <summary>
@@ -146,7 +322,6 @@ namespace NovaCad.Viewport
         public void RemoveMesh(Mesh mesh)
         {
             _meshes.Remove(mesh);
-            mesh.Dispose();
         }
 
         /// <summary>
@@ -154,11 +329,47 @@ namespace NovaCad.Viewport
         /// </summary>
         public void ClearMeshes()
         {
+            _meshes.Clear();
+        }
+
+        /// <summary>
+        /// Fit view to show all objects
+        /// </summary>
+        public void FitView()
+        {
+            // Calculate bounding box of all meshes
+            var bbox = new BoundingBox(
+                new Vector3(float.MaxValue, float.MaxValue, float.MaxValue),
+                new Vector3(float.MinValue, float.MinValue, float.MinValue)
+            );
+            bool hasMeshes = false;
+            
             foreach (var mesh in _meshes)
             {
-                mesh.Dispose();
+                if (mesh.IsVisible)
+                {
+                    bbox.Expand(mesh.GetBoundingBox());
+                    hasMeshes = true;
+                }
             }
-            _meshes.Clear();
+            
+            if (hasMeshes)
+            {
+                Vector3 center = bbox.Center;
+                float size = bbox.Size.Length();
+                float distance = size * 1.5f;
+                
+                _camera.Position = center + new Vector3(distance, distance * 0.5f, distance);
+                _camera.Target = center;
+            }
+        }
+
+        /// <summary>
+        /// Set standard view
+        /// </summary>
+        public void SetStandardView(StandardView view)
+        {
+            _camera.SetStandardView(view);
         }
 
         /// <summary>
@@ -168,22 +379,17 @@ namespace NovaCad.Viewport
         {
             if (button == ViewportMouseButton.Left)
             {
-                // Pick entity
-                var pickedId = PickEntity(x, y);
-                if (pickedId.HasValue)
-                {
-                    SelectedEntityId = pickedId;
-                    EntityPicked?.Invoke(this, new ViewportClickEventArgs(pickedId.Value, x, y));
-                }
+                // Left click - could be selection
+                // For now, just log or implement picking later
             }
             else if (button == ViewportMouseButton.Middle)
             {
-                // Start pan
+                // Middle button - start pan
                 _camera.StartPan(x, y);
             }
             else if (button == ViewportMouseButton.Right)
             {
-                // Start rotate
+                // Right button - start rotate
                 _camera.StartRotate(x, y);
             }
         }
@@ -201,15 +407,6 @@ namespace NovaCad.Viewport
             {
                 _camera.Rotate(x, y);
             }
-            else
-            {
-                // Hover
-                var hoveredId = PickEntity(x, y);
-                if (hoveredId.HasValue)
-                {
-                    EntityHovered?.Invoke(this, new ViewportHoverEventArgs(hoveredId.Value, x, y));
-                }
-            }
         }
 
         /// <summary>
@@ -221,35 +418,11 @@ namespace NovaCad.Viewport
         }
 
         /// <summary>
-        /// Handle mouse wheel for zoom
+        /// Handle mouse wheel
         /// </summary>
         public void OnMouseWheel(float delta)
         {
-            _camera.Zoom(delta);
-        }
-
-        /// <summary>
-        /// Fit view to show all geometry
-        /// </summary>
-        public void FitView()
-        {
-            if (_meshes.Count == 0) return;
-
-            var bbox = new BoundingBox();
-            foreach (var mesh in _meshes)
-            {
-                bbox.Expand(mesh.BoundingBox);
-            }
-
-            _camera.FitToBoundingBox(bbox);
-        }
-
-        /// <summary>
-        /// Set camera to standard view
-        /// </summary>
-        public void SetStandardView(StandardView view)
-        {
-            _camera.SetStandardView(view);
+            _camera.Zoom(delta * 0.1f);
         }
 
         /// <summary>
@@ -257,167 +430,25 @@ namespace NovaCad.Viewport
         /// </summary>
         private uint? PickEntity(int x, int y)
         {
-            // Convert screen coordinates to normalized device coordinates
-            float ndcX = (2.0f * x / Width) - 1.0f;
-            float ndcY = 1.0f - (2.0f * y / Height);
-
-            // Create ray from camera
-            var ray = _camera.GetRay(ndcX, ndcY);
-
-            // Find closest intersection
-            float closestDistance = float.MaxValue;
-            uint? closestId = null;
-
-            foreach (var mesh in _meshes)
-            {
-                if (mesh.IntersectRay(ray, out float distance, out uint faceId))
-                {
-                    if (distance < closestDistance)
-                    {
-                        closestDistance = distance;
-                        closestId = mesh.EntityId;
-                    }
-                }
-            }
-
-            return closestId;
-        }
-
-        private void RenderMesh(Mesh mesh)
-        {
-            if (!mesh.Visible) return;
-
-            // Set model matrix
-            _shader.SetMatrix4("uModel", mesh.Transform);
-            
-            // Set material properties
-            var color = mesh.IsSelected ? new Color(1.0f, 0.5f, 0.0f, 1.0f) : mesh.Color;
-            _shader.SetVector4("uColor", color.ToVector4());
-            _shader.SetFloat("uShininess", mesh.Shininess);
-            _shader.SetBool("uEnableLighting", EnableLighting);
-
-            // Render
-            mesh.Render(_gl);
-        }
-
-        private void RenderGrid()
-        {
-            // Render ground grid
-            _renderer.RenderGrid(_camera, 100.0f, 10.0f);
-        }
-
-        private void RenderAxes()
-        {
-            // Render XYZ axes (TODO: Implement)
-            // _renderer.RenderAxes(_camera, 10.0f);
-        }
-
-        private void RenderSelectionHighlight(uint entityId)
-        {
-            // Render highlight around selected entity (TODO: Implement)
-            // _renderer.RenderHighlight(entityId, new Color(1.0f, 0.5f, 0.0f, 0.5f));
-        }
-
-        private void CreateGrid()
-        {
-            // Create default grid geometry
-        }
-
-        private void CreateAxes()
-        {
-            // Create default axes geometry
-        }
-
-        private string GetVertexShaderSource()
-        {
-            return @"
-#version 330 core
-layout (location = 0) in vec3 aPosition;
-layout (location = 1) in vec3 aNormal;
-layout (location = 2) in vec2 aTexCoord;
-
-uniform mat4 uModel;
-uniform mat4 uView;
-uniform mat4 uProjection;
-
-out vec3 vWorldPos;
-out vec3 vNormal;
-out vec2 vTexCoord;
-
-void main()
-{
-    vec4 worldPos = uModel * vec4(aPosition, 1.0);
-    vWorldPos = worldPos.xyz;
-    vNormal = mat3(transpose(inverse(uModel))) * aNormal;
-    vTexCoord = aTexCoord;
-    gl_Position = uProjection * uView * worldPos;
-}
-";
-        }
-
-        private string GetFragmentShaderSource()
-        {
-            return @"
-#version 330 core
-in vec3 vWorldPos;
-in vec3 vNormal;
-in vec2 vTexCoord;
-
-uniform vec4 uColor;
-uniform vec3 uCameraPosition;
-uniform bool uEnableLighting;
-uniform float uShininess;
-
-out vec4 FragColor;
-
-void main()
-{
-    vec4 color = uColor;
-    
-    if (uEnableLighting)
-    {
-        // Simple Phong lighting
-        vec3 normal = normalize(vNormal);
-        vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));
-        vec3 viewDir = normalize(uCameraPosition - vWorldPos);
-        vec3 reflectDir = reflect(-lightDir, normal);
-        
-        float ambient = 0.3;
-        float diffuse = max(dot(normal, lightDir), 0.0) * 0.5;
-        float specular = pow(max(dot(viewDir, reflectDir), 0.0), uShininess) * 0.2;
-        
-        float lighting = ambient + diffuse + specular;
-        color.rgb *= lighting;
-    }
-    
-    FragColor = color;
-}
-";
+            // TODO: Implement ray casting
+            return null;
         }
 
         public void Dispose()
         {
             if (_disposed) return;
-            
-            _shader?.Dispose();
+
+            _gridShader?.Dispose();
+            _axesShader?.Dispose();
             _renderer?.Dispose();
             
-            foreach (var mesh in _meshes)
-            {
-                mesh.Dispose();
-            }
-            _meshes.Clear();
-            
-            _disposed = true;
-            GC.SuppressFinalize(this);
-        }
-    }
+            _gl.DeleteBuffer(_gridVbo);
+            _gl.DeleteVertexArray(_gridVao);
+            _gl.DeleteBuffer(_axesVbo);
+            _gl.DeleteVertexArray(_axesVao);
 
-    public enum ViewportMouseButton
-    {
-        Left,
-        Middle,
-        Right
+            _disposed = true;
+        }
     }
 
     public enum StandardView
@@ -449,15 +480,22 @@ void main()
 
     public class ViewportHoverEventArgs : EventArgs
     {
-        public uint EntityId { get; }
+        public uint? EntityId { get; }
         public int X { get; }
         public int Y { get; }
 
-        public ViewportHoverEventArgs(uint entityId, int x, int y)
+        public ViewportHoverEventArgs(uint? entityId, int x, int y)
         {
             EntityId = entityId;
             X = x;
             Y = y;
         }
+    }
+
+    public enum ViewportMouseButton
+    {
+        Left,
+        Middle,
+        Right
     }
 }

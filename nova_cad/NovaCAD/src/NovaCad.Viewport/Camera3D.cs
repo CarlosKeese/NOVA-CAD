@@ -37,11 +37,12 @@ namespace NovaCad.Viewport
         private int _lastMouseX;
         private int _lastMouseY;
 
-        public Vector3 Position => _position;
-        public Vector3 Target => _target;
+        public Vector3 Position { get => _position; set { _position = value; UpdateVectors(); } }
+        public Vector3 Target { get => _target; set { _target = value; UpdateVectors(); } }
         public Vector3 Up => _up;
         public Vector3 Front => _front;
         public Vector3 Right => _right;
+        public float Aspect { get => _aspectRatio; set { _aspectRatio = value; } }
 
         public Camera3D(int width, int height)
         {
@@ -55,6 +56,27 @@ namespace NovaCad.Viewport
             _pitch = -30.0f;
             _target = Vector3.Zero;
             _up = Vector3.UnitY;
+            
+            UpdateVectors();
+        }
+
+        public Camera3D(Vector3 position, Vector3 target, Vector3 up, float fov, float aspect, float near, float far)
+        {
+            _position = position;
+            _target = target;
+            _up = up;
+            FieldOfView = fov;
+            _aspectRatio = aspect;
+            NearPlane = near;
+            FarPlane = far;
+            
+            // Calculate distance and angles from position/target
+            Vector3 dir = position - target;
+            _distance = dir.Length();
+            
+            Vector3 dirNorm = Vector3.Normalize(dir);
+            _yaw = MathF.Atan2(dirNorm.X, dirNorm.Z) * 180.0f / MathF.PI;
+            _pitch = MathF.Asin(-dirNorm.Y) * 180.0f / MathF.PI;
             
             UpdateVectors();
         }
@@ -324,44 +346,4 @@ namespace NovaCad.Viewport
         }
     }
 
-    /// <summary>
-    /// Bounding box for fitting view
-    /// </summary>
-    public struct BoundingBox
-    {
-        public Vector3 Min;
-        public Vector3 Max;
-
-        public Vector3 Center => (Min + Max) * 0.5f;
-        public Vector3 Size => Max - Min;
-        
-        public float Radius
-        {
-            get
-            {
-                float dx = Max.X - Min.X;
-                float dy = Max.Y - Min.Y;
-                float dz = Max.Z - Min.Z;
-                return MathF.Sqrt(dx * dx + dy * dy + dz * dz) * 0.5f;
-            }
-        }
-
-        public BoundingBox(Vector3 min, Vector3 max)
-        {
-            Min = min;
-            Max = max;
-        }
-
-        public void Expand(Vector3 point)
-        {
-            Min = Vector3.Min(Min, point);
-            Max = Vector3.Max(Max, point);
-        }
-
-        public void Expand(BoundingBox other)
-        {
-            Min = Vector3.Min(Min, other.Min);
-            Max = Vector3.Max(Max, other.Max);
-        }
-    }
 }

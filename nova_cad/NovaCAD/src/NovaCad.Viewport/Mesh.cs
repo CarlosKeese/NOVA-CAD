@@ -30,6 +30,7 @@ namespace NovaCad.Viewport
         public Color Color { get; set; } = new Color(0.7f, 0.7f, 0.7f, 1.0f);
         public float Shininess { get; set; } = 32.0f;
         public bool Visible { get; set; } = true;
+        public bool IsVisible { get => Visible; set => Visible = value; }
         public bool IsSelected { get; set; }
         
         // Identification
@@ -51,6 +52,8 @@ namespace NovaCad.Viewport
                 return _boundingBox;
             }
         }
+
+        public BoundingBox GetBoundingBox() => BoundingBox;
 
         public Mesh()
         {
