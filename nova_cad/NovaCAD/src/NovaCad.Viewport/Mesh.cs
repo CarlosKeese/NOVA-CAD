@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Silk.NET.OpenGL;
-using NovaCad.Kernel;
+using Avalonia.OpenGL;
+using static NovaCad.Viewport.GlConstants;
 
 namespace NovaCad.Viewport
 {
@@ -11,10 +11,10 @@ namespace NovaCad.Viewport
     /// </summary>
     public unsafe class Mesh : IDisposable
     {
-        private GL _gl;
-        private uint _vao;
-        private uint _vbo;
-        private uint _ebo;
+        private GlInterface _gl;
+        private int _vao;
+        private int _vbo;
+        private int _ebo;
         private int _indexCount;
         private bool _initialized;
         private bool _disposed;
@@ -32,6 +32,7 @@ namespace NovaCad.Viewport
         public bool Visible { get; set; } = true;
         public bool IsVisible { get => Visible; set => Visible = value; }
         public bool IsSelected { get; set; }
+        public bool IsInitialized => _initialized;
         
         // Identification
         public uint EntityId { get; set; }
@@ -70,11 +71,12 @@ namespace NovaCad.Viewport
         /// <summary>
         /// Initialize OpenGL buffers
         /// </summary>
-        public void Initialize(GL gl)
+        public void Initialize(GlInterface gl)
         {
             if (_initialized || Vertices.Count == 0) return;
 
             _gl = gl;
+            GlExtensions.Initialize(gl);
 
             // Create VAO
             _vao = gl.GenVertexArray();
@@ -82,44 +84,42 @@ namespace NovaCad.Viewport
 
             // Create VBO
             _vbo = gl.GenBuffer();
-            gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
+            gl.BindBuffer(GL_ARRAY_BUFFER, _vbo);
             
             // Upload vertex data
             var vertexData = GetVertexData();
             fixed (float* ptr = vertexData)
             {
-                gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(vertexData.Length * sizeof(float)), ptr, BufferUsageARB.StaticDraw);
+                gl.BufferData(GL_ARRAY_BUFFER, vertexData.Length * sizeof(float), new IntPtr(ptr), GL_STATIC_DRAW);
             }
 
             // Create EBO
             _ebo = gl.GenBuffer();
-            gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, _ebo);
+            gl.BindBuffer(GL_ELEMENT_ARRAY_BUFFER, _ebo);
             
             // Upload index data
             var indexData = Indices.ToArray();
             _indexCount = indexData.Length;
             fixed (uint* ptr = indexData)
             {
-                gl.BufferData(BufferTargetARB.ElementArrayBuffer, (nuint)(indexData.Length * sizeof(uint)), ptr, BufferUsageARB.StaticDraw);
+                gl.BufferData(GL_ELEMENT_ARRAY_BUFFER, indexData.Length * sizeof(uint), new IntPtr(ptr), GL_STATIC_DRAW);
             }
 
             // Set up vertex attributes
             // Position (3 floats)
-            gl.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, (uint)(8 * sizeof(float)), (void*)0);
+            gl.VertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), IntPtr.Zero);
             gl.EnableVertexAttribArray(0);
 
             // Normal (3 floats)
-            gl.VertexAttribPointer(1, 3, VertexAttribPointerType.Float, false, (uint)(8 * sizeof(float)), (void*)(3 * sizeof(float)));
+            gl.VertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), new IntPtr(3 * sizeof(float)));
             gl.EnableVertexAttribArray(1);
 
             // TexCoord (2 floats)
-            gl.VertexAttribPointer(2, 2, VertexAttribPointerType.Float, false, (uint)(8 * sizeof(float)), (void*)(6 * sizeof(float)));
+            gl.VertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), new IntPtr(6 * sizeof(float)));
             gl.EnableVertexAttribArray(2);
 
             // Unbind
             gl.BindVertexArray(0);
-            gl.BindBuffer(BufferTargetARB.ArrayBuffer, 0);
-            gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, 0);
 
             _initialized = true;
         }
@@ -127,29 +127,28 @@ namespace NovaCad.Viewport
         /// <summary>
         /// Render the mesh
         /// </summary>
-        public void Render(GL gl)
+        public void Render(GlInterface gl)
         {
             if (!_initialized || _disposed) return;
 
             gl.BindVertexArray(_vao);
-            gl.DrawElements(PrimitiveType.Triangles, (uint)_indexCount, DrawElementsType.UnsignedInt, (void*)0);
+            gl.DrawElements(GL_TRIANGLES, _indexCount, GL_UNSIGNED_INT, IntPtr.Zero);
             gl.BindVertexArray(0);
         }
 
         /// <summary>
         /// Update vertex data
         /// </summary>
-        public void UpdateVertices(GL gl)
+        public void UpdateVertices(GlInterface gl)
         {
             if (!_initialized) return;
 
-            gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
+            gl.BindBuffer(GL_ARRAY_BUFFER, _vbo);
             var vertexData = GetVertexData();
             fixed (float* ptr = vertexData)
             {
-                gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(vertexData.Length * sizeof(float)), ptr, BufferUsageARB.StaticDraw);
+                gl.BufferData(GL_ARRAY_BUFFER, vertexData.Length * sizeof(float), new IntPtr(ptr), GL_STATIC_DRAW);
             }
-            gl.BindBuffer(BufferTargetARB.ArrayBuffer, 0);
 
             _bboxDirty = true;
         }
@@ -191,77 +190,6 @@ namespace NovaCad.Viewport
             }
 
             return hit;
-        }
-
-        /// <summary>
-        /// Create mesh from kernel body handle
-        /// </summary>
-        public static Mesh FromBody(NovaKernel.NovaHandle bodyHandle, GL gl)
-        {
-            var mesh = new Mesh();
-            
-            // TODO: Implement tessellation using nova_tessellate_body from kernel
-            // For now, return empty mesh
-            mesh.EntityId = (uint)bodyHandle.Value;
-            mesh.Initialize(gl);
-
-            return mesh;
-        }
-
-        /// <summary>
-        /// Create a cube mesh
-        /// </summary>
-        public static Mesh CreateCube(GL gl, float size)
-        {
-            float half = size / 2.0f;
-            
-            var mesh = new Mesh();
-            
-            // Vertices
-            mesh.Vertices.Add(new Vertex { Position = new Vector3(-half, -half, -half), Normal = new Vector3(0, 0, -1), TexCoord = new Vector2(0, 0) });
-            mesh.Vertices.Add(new Vertex { Position = new Vector3(half, -half, -half), Normal = new Vector3(0, 0, -1), TexCoord = new Vector2(1, 0) });
-            mesh.Vertices.Add(new Vertex { Position = new Vector3(half, half, -half), Normal = new Vector3(0, 0, -1), TexCoord = new Vector2(1, 1) });
-            mesh.Vertices.Add(new Vertex { Position = new Vector3(-half, half, -half), Normal = new Vector3(0, 0, -1), TexCoord = new Vector2(0, 1) });
-
-            mesh.Vertices.Add(new Vertex { Position = new Vector3(-half, -half, half), Normal = new Vector3(0, 0, 1), TexCoord = new Vector2(0, 0) });
-            mesh.Vertices.Add(new Vertex { Position = new Vector3(half, -half, half), Normal = new Vector3(0, 0, 1), TexCoord = new Vector2(1, 0) });
-            mesh.Vertices.Add(new Vertex { Position = new Vector3(half, half, half), Normal = new Vector3(0, 0, 1), TexCoord = new Vector2(1, 1) });
-            mesh.Vertices.Add(new Vertex { Position = new Vector3(-half, half, half), Normal = new Vector3(0, 0, 1), TexCoord = new Vector2(0, 1) });
-
-            mesh.Vertices.Add(new Vertex { Position = new Vector3(-half, half, half), Normal = new Vector3(0, 1, 0), TexCoord = new Vector2(0, 0) });
-            mesh.Vertices.Add(new Vertex { Position = new Vector3(half, half, half), Normal = new Vector3(0, 1, 0), TexCoord = new Vector2(1, 0) });
-            mesh.Vertices.Add(new Vertex { Position = new Vector3(half, half, -half), Normal = new Vector3(0, 1, 0), TexCoord = new Vector2(1, 1) });
-            mesh.Vertices.Add(new Vertex { Position = new Vector3(-half, half, -half), Normal = new Vector3(0, 1, 0), TexCoord = new Vector2(0, 1) });
-
-            mesh.Vertices.Add(new Vertex { Position = new Vector3(-half, -half, half), Normal = new Vector3(0, -1, 0), TexCoord = new Vector2(0, 0) });
-            mesh.Vertices.Add(new Vertex { Position = new Vector3(half, -half, half), Normal = new Vector3(0, -1, 0), TexCoord = new Vector2(1, 0) });
-            mesh.Vertices.Add(new Vertex { Position = new Vector3(half, -half, -half), Normal = new Vector3(0, -1, 0), TexCoord = new Vector2(1, 1) });
-            mesh.Vertices.Add(new Vertex { Position = new Vector3(-half, -half, -half), Normal = new Vector3(0, -1, 0), TexCoord = new Vector2(0, 1) });
-
-            mesh.Vertices.Add(new Vertex { Position = new Vector3(half, -half, half), Normal = new Vector3(1, 0, 0), TexCoord = new Vector2(0, 0) });
-            mesh.Vertices.Add(new Vertex { Position = new Vector3(half, -half, -half), Normal = new Vector3(1, 0, 0), TexCoord = new Vector2(1, 0) });
-            mesh.Vertices.Add(new Vertex { Position = new Vector3(half, half, -half), Normal = new Vector3(1, 0, 0), TexCoord = new Vector2(1, 1) });
-            mesh.Vertices.Add(new Vertex { Position = new Vector3(half, half, half), Normal = new Vector3(1, 0, 0), TexCoord = new Vector2(0, 1) });
-
-            mesh.Vertices.Add(new Vertex { Position = new Vector3(-half, -half, -half), Normal = new Vector3(-1, 0, 0), TexCoord = new Vector2(0, 0) });
-            mesh.Vertices.Add(new Vertex { Position = new Vector3(-half, -half, half), Normal = new Vector3(-1, 0, 0), TexCoord = new Vector2(1, 0) });
-            mesh.Vertices.Add(new Vertex { Position = new Vector3(-half, half, half), Normal = new Vector3(-1, 0, 0), TexCoord = new Vector2(1, 1) });
-            mesh.Vertices.Add(new Vertex { Position = new Vector3(-half, half, -half), Normal = new Vector3(-1, 0, 0), TexCoord = new Vector2(0, 1) });
-
-            // Indices
-            for (uint i = 0; i < 6; i++)
-            {
-                uint baseIndex = i * 4;
-                mesh.Indices.Add(baseIndex);
-                mesh.Indices.Add(baseIndex + 1);
-                mesh.Indices.Add(baseIndex + 2);
-                mesh.Indices.Add(baseIndex);
-                mesh.Indices.Add(baseIndex + 2);
-                mesh.Indices.Add(baseIndex + 3);
-            }
-
-            mesh.Initialize(gl);
-            return mesh;
         }
 
         private float[] GetVertexData()
@@ -339,7 +267,7 @@ namespace NovaCad.Viewport
         {
             if (_disposed) return;
 
-            if (_initialized && _gl != null)
+            if (_initialized)
             {
                 _gl.DeleteVertexArray(_vao);
                 _gl.DeleteBuffer(_vbo);
@@ -368,36 +296,5 @@ namespace NovaCad.Viewport
         }
     }
 
-    /// <summary>
-    /// Color structure
-    /// </summary>
-    public struct Color
-    {
-        public float R;
-        public float G;
-        public float B;
-        public float A;
 
-        public Color(float r, float g, float b, float a)
-        {
-            R = r;
-            G = g;
-            B = b;
-            A = a;
-        }
-
-        public Vector4 ToVector4()
-        {
-            return new Vector4(R, G, B, A);
-        }
-
-        public static Color Red => new Color(1.0f, 0.0f, 0.0f, 1.0f);
-        public static Color Green => new Color(0.0f, 1.0f, 0.0f, 1.0f);
-        public static Color Blue => new Color(0.0f, 0.0f, 1.0f, 1.0f);
-        public static Color White => new Color(1.0f, 1.0f, 1.0f, 1.0f);
-        public static Color Black => new Color(0.0f, 0.0f, 0.0f, 1.0f);
-        public static Color Gray => new Color(0.5f, 0.5f, 0.5f, 1.0f);
-        public static Color Yellow => new Color(1.0f, 1.0f, 0.0f, 1.0f);
-        public static Color Orange => new Color(1.0f, 0.5f, 0.0f, 1.0f);
-    }
 }

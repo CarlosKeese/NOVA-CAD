@@ -3,135 +3,251 @@ using System.Numerics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Media;
-using Avalonia.Platform;
+using Avalonia.OpenGL;
+using Avalonia.OpenGL.Controls;
 using Avalonia.Rendering;
-using Avalonia.Interactivity;
-// Note: Avalonia.Silk integration requires Avalonia.Silk package or custom implementation
-using Silk.NET.OpenGL;
+using Avalonia.Threading;
 using NovaCad.Core.Models;
+using static Avalonia.OpenGL.GlConsts;
 
 namespace NovaCad.Viewport
 {
     /// <summary>
-    /// Avalonia control for 3D viewport rendering
+    /// Avalonia OpenGL control for 3D viewport rendering
     /// </summary>
-    public class ViewportControl : NativeControlHost, IDisposable
+    public class ViewportControl : OpenGlControlBase, IDisposable
     {
         private Viewport3D? _viewport;
-        private GL? _gl;
         private bool _isInitialized;
         private bool _disposed;
 
-        // Document reference
-        public NovaDocument? Document { get; set; }
-
-        // Events
-        public event EventHandler<ViewportClickEventArgs>? EntityPicked
+        // ViewModel
+        private IViewportViewModel? _viewModel;
+        public IViewportViewModel? ViewModel
         {
-            add => AddHandler(EntityPickedEvent, value);
-            remove => RemoveHandler(EntityPickedEvent, value);
-        }
+            get => _viewModel;
+            set
+            {
+                ViewportDiagnostics.Log($"ViewModel setter called: {(value != null ? "not null" : "NULL")}", LogLevel.Debug);
+                
+                if (_viewModel != null)
+                {
+                    _viewModel.VisualObjectCreated -= OnVisualObjectCreated;
+                    _viewModel.VisualObjectsCleared -= OnVisualObjectsCleared;
+                    _viewModel.RenderModeChanged -= OnRenderModeChanged;
+                    _viewModel.ViewPresetChanged -= OnViewPresetChanged;
+                    _viewModel.FitAllRequested -= OnFitAllRequested;
+                }
 
-        public static readonly RoutedEvent EntityPickedEvent =
-            RoutedEvent.Register<ViewportControl, RoutedEventArgs>(nameof(EntityPicked), RoutingStrategies.Bubble);
+                _viewModel = value;
+
+                if (_viewModel != null)
+                {
+                    _viewModel.VisualObjectCreated += OnVisualObjectCreated;
+                    _viewModel.VisualObjectsCleared += OnVisualObjectsCleared;
+                    _viewModel.RenderModeChanged += OnRenderModeChanged;
+                    _viewModel.ViewPresetChanged += OnViewPresetChanged;
+                    _viewModel.FitAllRequested += OnFitAllRequested;
+                    
+                    ViewportDiagnostics.LogViewModelState(_viewModel);
+                }
+            }
+        }
 
         public ViewportControl()
         {
+            ViewportDiagnostics.Log("ViewportControl constructor called", LogLevel.Info);
             Focusable = true;
         }
 
-        protected override IPlatformHandle CreateNativeControlCore(IPlatformHandle parent)
+        protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
         {
-            var handle = base.CreateNativeControlCore(parent);
-            InitializeOpenGL();
-            return handle;
+            base.OnAttachedToVisualTree(e);
+            ViewportDiagnostics.Log("ViewportControl attached to visual tree", LogLevel.Info);
         }
 
-        private void InitializeOpenGL()
+        protected override void OnOpenGlInit(GlInterface gl)
         {
-            if (_isInitialized) return;
+            base.OnOpenGlInit(gl);
+            ViewportDiagnostics.Log("OnOpenGlInit called", LogLevel.Info);
+
+            if (_isInitialized)
+            {
+                ViewportDiagnostics.Log("Already initialized, skipping", LogLevel.Warning);
+                return;
+            }
 
             try
             {
-                // Create OpenGL context using Silk.NET
-                var options = Silk.NET.Windowing.WindowOptions.Default;
-                options.Size = new Silk.NET.Maths.Vector2D<int>((int)Bounds.Width, (int)Bounds.Height);
-                options.Title = "NovaCAD Viewport";
-                options.API = Silk.NET.Windowing.GraphicsAPI.Default;
-                options.VSync = true;
-                
-                var window = Silk.NET.Windowing.Window.Create(options);
+                // Initialize extension methods
+                GlExtensions.Initialize(gl);
+                ViewportDiagnostics.Log("GlExtensions initialized", LogLevel.Debug);
 
-                _gl = GL.GetApi(window);
-                
+                // Log OpenGL info
+                ViewportDiagnostics.LogOpenGLInfo(gl);
+
                 // Create viewport
-                _viewport = new Viewport3D(_gl, (int)Bounds.Width, (int)Bounds.Height);
-                _viewport.EntityPicked += OnViewportEntityPicked;
-
-                _isInitialized = true;
+                var width = (int)Bounds.Width;
+                var height = (int)Bounds.Height;
+                ViewportDiagnostics.Log($"Creating Viewport3D with size {width}x{height}", LogLevel.Debug);
                 
-                // Load document if available
-                if (Document != null)
+                _viewport = new Viewport3D(gl, width, height);
+                _isInitialized = true;
+                ViewportDiagnostics.Log("Viewport3D created successfully", LogLevel.Info);
+
+                // Sync with ViewModel if available
+                if (ViewModel != null)
                 {
-                    LoadDocument(Document);
+                    ViewportDiagnostics.Log("Syncing with existing ViewModel", LogLevel.Debug);
+                    _viewport.ShowGrid = ViewModel.ShowGrid;
+                    _viewport.ShowAxes = ViewModel.ShowAxes;
+                    
+                    // Add existing visual objects
+                    if (ViewModel.VisualObjects != null)
+                    {
+                        ViewportDiagnostics.Log($"Adding {ViewModel.VisualObjects.Count} existing visual objects", LogLevel.Debug);
+                        foreach (var visualObject in ViewModel.VisualObjects)
+                        {
+                            if (visualObject?.Mesh != null)
+                            {
+                                if (!visualObject.Mesh.IsInitialized)
+                                {
+                                    ViewportDiagnostics.Log($"Initializing mesh for {visualObject.Name}", LogLevel.Debug);
+                                    visualObject.Mesh.Initialize(gl);
+                                }
+                                _viewport.AddMesh(visualObject.Mesh);
+                                ViewportDiagnostics.LogMeshInfo(visualObject.Mesh, visualObject.Name);
+                            }
+                        }
+                    }
                 }
+                else
+                {
+                    ViewportDiagnostics.Log("No ViewModel attached yet", LogLevel.Warning);
+                }
+                
+                ViewportDiagnostics.LogViewportState(_viewport);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to initialize OpenGL: {ex.Message}");
+                ViewportDiagnostics.LogException(ex, "OnOpenGlInit");
             }
         }
 
-        /// <summary>
-        /// Load a document into the viewport
-        /// </summary>
-        public void LoadDocument(NovaDocument document)
+        protected override void OnOpenGlRender(GlInterface gl, int fb)
         {
-            Document = document;
+            if (_viewport == null || _disposed)
+            {
+                // Log only occasionally to avoid spam
+                if (_viewport == null && DateTime.Now.Second % 5 == 0)
+                {
+                    ViewportDiagnostics.Log("Render called but viewport is null", LogLevel.Warning);
+                }
+                return;
+            }
+
+            try
+            {
+                // Set viewport size
+                gl.Viewport(0, 0, (int)Bounds.Width, (int)Bounds.Height);
+
+                // Render
+                _viewport.Render(gl);
+            }
+            catch (Exception ex)
+            {
+                ViewportDiagnostics.LogException(ex, "OnOpenGlRender");
+            }
+        }
+
+        protected override void OnOpenGlDeinit(GlInterface gl)
+        {
+            base.OnOpenGlDeinit(gl);
+            ViewportDiagnostics.Log("OnOpenGlDeinit called", LogLevel.Info);
+            _viewport?.Dispose();
+            _isInitialized = false;
+        }
+
+        private void OnVisualObjectCreated(object? sender, VisualObjectCreatedEventArgs e)
+        {
+            ViewportDiagnostics.Log($"VisualObjectCreated: {e.Name}", LogLevel.Info);
             
-            if (!_isInitialized || _viewport == null) return;
-
-            _viewport.ClearMeshes();
-
-            // Create meshes from document bodies
-            foreach (var bodyRef in document.Bodies)
+            if (_viewport == null)
             {
-                var mesh = Mesh.FromBody(new NovaCad.Kernel.NovaKernel.NovaHandle(bodyRef.GetKernelHandleValue()), _gl!);
-                _viewport.AddMesh(mesh);
+                ViewportDiagnostics.Log("Viewport is null, cannot add mesh yet", LogLevel.Warning);
+                return;
             }
 
-            // Fit view to content
-            _viewport.FitView();
+            Dispatcher.UIThread.Post(() =>
+            {
+                try
+                {
+                    if (e.Mesh == null)
+                    {
+                        ViewportDiagnostics.Log($"Mesh for {e.Name} is null!", LogLevel.Error);
+                        return;
+                    }
+
+                    // Get GL interface from current context if needed
+                    if (!e.Mesh.IsInitialized)
+                    {
+                        ViewportDiagnostics.Log($"Initializing mesh {e.Name}", LogLevel.Debug);
+                        // Mesh will be initialized on next render
+                    }
+
+                    _viewport.AddMesh(e.Mesh);
+                    ViewportDiagnostics.LogMeshInfo(e.Mesh, e.Name);
+                    ViewportDiagnostics.Log($"Mesh {e.Name} added to viewport", LogLevel.Info);
+                    
+                    RequestNextFrameRendering();
+                }
+                catch (Exception ex)
+                {
+                    ViewportDiagnostics.LogException(ex, "OnVisualObjectCreated");
+                }
+            });
         }
 
-        /// <summary>
-        /// Refresh the viewport
-        /// </summary>
-        public void Refresh()
+        private void OnVisualObjectsCleared(object? sender, EventArgs e)
         {
-            if (Document != null)
+            ViewportDiagnostics.Log("VisualObjectsCleared", LogLevel.Info);
+            _viewport?.ClearMeshes();
+            RequestNextFrameRendering();
+        }
+
+        private void OnRenderModeChanged(object? sender, RenderMode renderMode)
+        {
+            ViewportDiagnostics.Log($"RenderModeChanged to {renderMode}", LogLevel.Debug);
+            if (_viewport == null) return;
+            _viewport.Wireframe = (renderMode == RenderMode.Wireframe);
+            RequestNextFrameRendering();
+        }
+
+        private void OnViewPresetChanged(object? sender, string viewName)
+        {
+            ViewportDiagnostics.Log($"ViewPresetChanged to {viewName}", LogLevel.Debug);
+            
+            StandardView? view = viewName switch
             {
-                LoadDocument(Document);
+                "Front" => StandardView.Front,
+                "Top" => StandardView.Top,
+                "Right" => StandardView.Right,
+                "Iso" => StandardView.Isometric,
+                _ => null
+            };
+
+            if (view.HasValue && _viewport != null)
+            {
+                _viewport.SetStandardView(view.Value);
+                RequestNextFrameRendering();
             }
         }
 
-        /// <summary>
-        /// Set standard view
-        /// </summary>
-        public void SetView(StandardView view)
+        private void OnFitAllRequested(object? sender, EventArgs e)
         {
-            _viewport?.SetStandardView(view);
-            InvalidateVisual();
-        }
-
-        /// <summary>
-        /// Fit view to content
-        /// </summary>
-        public void FitView()
-        {
+            ViewportDiagnostics.Log("FitAllRequested", LogLevel.Debug);
             _viewport?.FitView();
-            InvalidateVisual();
+            RequestNextFrameRendering();
         }
 
         protected override void OnPointerPressed(PointerPressedEventArgs e)
@@ -149,8 +265,8 @@ namespace NovaCad.Viewport
                 _ => ViewportMouseButton.Left
             };
 
+            ViewportDiagnostics.Log($"MouseDown: {button} at ({point.X:F0},{point.Y:F0})", LogLevel.Debug);
             _viewport.OnMouseDown(button, (int)point.X, (int)point.Y);
-            
             Focus();
         }
 
@@ -169,6 +285,11 @@ namespace NovaCad.Viewport
                 props.IsLeftButtonPressed,
                 props.IsMiddleButtonPressed,
                 props.IsRightButtonPressed);
+
+            if (props.IsLeftButtonPressed || props.IsMiddleButtonPressed || props.IsRightButtonPressed)
+            {
+                RequestNextFrameRendering();
+            }
         }
 
         protected override void OnPointerReleased(PointerReleasedEventArgs e)
@@ -185,6 +306,7 @@ namespace NovaCad.Viewport
                 _ => ViewportMouseButton.Left
             };
 
+            ViewportDiagnostics.Log($"MouseUp: {button}", LogLevel.Debug);
             _viewport.OnMouseUp(button);
         }
 
@@ -195,17 +317,9 @@ namespace NovaCad.Viewport
             if (_viewport == null) return;
 
             float delta = (float)e.Delta.Y;
+            ViewportDiagnostics.Log($"MouseWheel: {delta:F1}", LogLevel.Debug);
             _viewport.OnMouseWheel(delta);
-        }
-
-        public override void Render(DrawingContext context)
-        {
-            base.Render(context);
-
-            if (_viewport != null && _isInitialized)
-            {
-                _viewport.Render();
-            }
+            RequestNextFrameRendering();
         }
 
         protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -215,19 +329,26 @@ namespace NovaCad.Viewport
             if (change.Property == BoundsProperty)
             {
                 var newBounds = (Rect)change.NewValue!;
+                ViewportDiagnostics.Log($"Bounds changed to {newBounds.Width:F0}x{newBounds.Height:F0}", LogLevel.Debug);
                 _viewport?.Resize((int)newBounds.Width, (int)newBounds.Height);
+                RequestNextFrameRendering();
             }
-        }
-
-        private void OnViewportEntityPicked(object? sender, ViewportClickEventArgs e)
-        {
-            var args = new ViewportClickEventArgs(e.EntityId, e.X, e.Y);
-            RaiseEvent(args);
         }
 
         public void Dispose()
         {
             if (_disposed) return;
+
+            ViewportDiagnostics.Log("ViewportControl disposing", LogLevel.Info);
+
+            if (_viewModel != null)
+            {
+                _viewModel.VisualObjectCreated -= OnVisualObjectCreated;
+                _viewModel.VisualObjectsCleared -= OnVisualObjectsCleared;
+                _viewModel.RenderModeChanged -= OnRenderModeChanged;
+                _viewModel.ViewPresetChanged -= OnViewPresetChanged;
+                _viewModel.FitAllRequested -= OnFitAllRequested;
+            }
 
             _viewport?.Dispose();
             _disposed = true;

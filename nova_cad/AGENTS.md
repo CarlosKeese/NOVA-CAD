@@ -1,358 +1,190 @@
-# Nova Kernel 3D + Nova CAD - Agent Guide
+# Nova CAD - Agent Development Guidelines
 
-## Visão Geral do Projeto
+## Project Overview
 
-Este projeto implementa um kernel 3D CAD open-source em Rust com uma aplicação CAD profissional em C#/AvaloniaUI. A arquitetura é dividida em duas partes principais:
+Nova CAD is a modern 3D CAD application combining:
+- **Rust Geometry Kernel**: High-performance B-Rep modeling
+- **C# UI/Viewport**: Windows-optimized interface with OpenGL
+- **Python Scripting**: Automation and extensibility
 
-1. **Nova Kernel 3D** (Rust) - Kernel computacional de geometria 3D
-2. **Nova CAD** (C#/AvaloniaUI) - Aplicação CAD profissional
+Design inspiration: [Plasticity](https://www.plasticity.xyz/) and [Shapr3D](https://www.shapr3d.com/)
 
-A inspiração vem da tecnologia Synchronous do Solid Edge, com ênfase em edição direta de modelos.
-
-## Arquitetura
-
-### Kernel Rust (nova_kernel/)
-
-O kernel é organizado em camadas modulares (crates):
-
-| Camada | Crate | Descrição | Status |
-|--------|-------|-----------|--------|
-| L0 | `nova_math` | Fundamentos matemáticos: pontos, vetores, matrizes, tolerâncias | ✅ Implementado |
-| L1 | `nova_geom` | Curvas e superfícies: Line, Arc, NURBS, Plane, Cylinder, Sphere, etc. | ✅ Implementado |
-| L2 | `nova_topo` | Topologia B-Rep: Vertex, Edge, Coedge, Loop, Face, Shell, Body | ✅ Implementado |
-| L3 | `nova_ops` | Operações: Boolean, fillet, chamfer, sweep, loft | 🔄 Estrutura pronta |
-| L4 | `nova_sync` | Edição direta: face move, live rules, reconhecimento geométrico | 🔄 Estrutura pronta |
-| L5 | `nova_tess` | Tesselação: triangulação adaptativa para visualização | 🔄 Estrutura pronta |
-| L6 | `nova_io` | I/O: STEP AP214/AP242, IGES, formato nativo .nova | 🔄 Estrutura pronta |
-| L7 | `nova_check` | Validação: verificação topológica, healing | 🔄 Estrutura pronta |
-| L8 | `nova_ffi` | Interface C-ABI para interoperabilidade | ✅ Implementado |
-
-### Aplicação C# (NovaCAD/)
-
-A aplicação é organizada em projetos:
-
-| Projeto | Descrição | Tecnologias |
-|---------|-----------|-------------|
-| `NovaCad.Core` | Modelos de domínio, interfaces, serviços | .NET 8, CommunityToolkit.Mvvm |
-| `NovaCad.Kernel` | Wrapper P/Invoke para o kernel Rust | System.Runtime.InteropServices |
-| `NovaCad.Viewport` | Renderização 3D com Silk.NET/OpenGL | Silk.NET 2.21.0 |
-| `NovaCad.UI` | Interface do usuário com AvaloniaUI | Avalonia 11.0.7, Dock.Avalonia |
-| `NovaCad.App` | Aplicação principal | Avalonia, Serilog |
-
-## Estrutura de Diretórios
+## Architecture Stack
 
 ```
-nova_cad/
-├── nova_kernel/              # Kernel Rust
-│   ├── Cargo.toml           # Workspace definition
-│   └── crates/
-│       ├── nova_math/       # Matemática (~1.500 linhas)
-│       ├── nova_geom/       # Geometria (~2.000 linhas)
-│       ├── nova_topo/       # Topologia B-Rep (~1.500 linhas)
-│       ├── nova_ffi/        # Interface C (~800 linhas)
-│       └── ...
-├── NovaCAD/                 # Aplicação C#
-│   ├── NovaCAD.sln          # Solution file
-│   └── src/
-│       ├── NovaCad.Core/    # Core models
-│       ├── NovaCad.Kernel/  # P/Invoke wrapper
-│       ├── NovaCad.Viewport/# 3D viewport
-│       ├── NovaCad.UI/      # UI components
-│       └── NovaCad.App/     # Main application
-├── build.sh                 # Build script
-├── README.md               # Visão geral
-├── SPECIFICATION.md        # Especificação técnica
-└── IMPLEMENTATION_SUMMARY.md # Resumo da implementação
+┌────────────────────────────────────────┐
+│  UI Layer (C# + Avalonia + OpenGL)    │
+│  - Viewport3D with hardware accel     │
+│  - Ribbon toolbar, model tree         │
+│  - Property panels, scripting console │
+├────────────────────────────────────────┤
+│  Interop Layer (C# P/Invoke)          │
+│  - Automatic stub fallback            │
+│  - Graceful degradation               │
+├────────────────────────────────────────┤
+│  Kernel Layer (Rust)                  │
+│  - B-Rep geometry                     │
+│  - Boolean operations                 │
+│  - Tessellation for rendering         │
+└────────────────────────────────────────┘
 ```
 
-## Tecnologias e Dependências
+## Coding Standards
+
+### C# (UI & Viewport)
+- Use `CommunityToolkit.Mvvm` for MVVM pattern
+- Use `Avalonia.OpenGL` for viewport (not Silk.NET)
+- Implement `IDisposable` for all OpenGL resources
+- Use `unsafe` keyword sparingly, prefer `Marshal` for interop
+- Log extensively using `ViewportDiagnostics` class
 
 ### Rust (Kernel)
-- **Versão mínima**: 1.75
-- **Edition**: 2021
-- **Dependências principais**:
-  - `nalgebra` 0.33 - Álgebra linear
-  - `num-traits` 0.2 - Traits numéricos
-  - `thiserror` 2.0 - Erros
-  - `serde` 1.0 - Serialização
-  - `libc` 0.2 - FFI
-  - `once_cell` 1.19 - Inicialização lazy
+- Follow `nova_kernel` crate structure
+- Use `#[repr(C)]` for all FFI-exposed types
+- Return `Result<T, NovaError>` for all fallible operations
+- Keep FFI boundary minimal and well-documented
 
-### C# (Aplicação)
-- **Framework**: .NET 8
-- **Language Version**: C# 12.0
-- **Dependências principais**:
-  - `Avalonia` 11.0.7 - UI Framework
-  - `CommunityToolkit.Mvvm` 8.2.2 - MVVM Toolkit
-  - `Silk.NET` 2.21.0 - OpenGL binding
-  - `Serilog` 3.1.1 - Logging
-  - `Microsoft.Extensions.DependencyInjection` 8.0.0 - DI
+### Python (Scripting - Future)
+- Use `pythonnet` for .NET interop
+- Follow Blender/Maya scripting conventions
+- Provide both procedural and declarative APIs
 
-## Comandos de Build
+## UI Design Principles (Plasticity/Shapr3D Style)
 
-### Script de Build (build.sh)
-
-```bash
-# Build completo (kernel + app)
-./build.sh all
-
-# Apenas kernel Rust
-./build.sh kernel
-
-# Apenas aplicação C#
-./build.sh app
-
-# Executar testes do kernel
-./build.sh test
-
-# Build e executar
-./build.sh run
-
-# Limpar artefatos
-./build.sh clean
-```
-
-### Build Manual - Kernel Rust
-
-```bash
-cd nova_kernel
-cargo build --release
-
-# Executar testes
-cargo test
-
-# Build com otimizações máximas
-# (Configurado em Cargo.toml: opt-level = 3, lto = "thin")
-```
-
-**Saída esperada:**
-- Linux: `target/release/libnova_ffi.so`
-- Windows: `target/release/nova_ffi.dll`
-- macOS: `target/release/libnova_ffi.dylib`
-
-### Build Manual - Aplicação C#
-
-```bash
-cd NovaCAD
-
-# Restaurar pacotes
-dotnet restore
-
-# Build
-dotnet build
-
-# Executar
-dotnet run --project src/NovaCad.App
-
-# Build de release
-dotnet build -c Release
-```
-
-## Convenções de Código
-
-### Rust
-
-**Estilo:**
-- Siga o rustfmt padrão
-- Documentação obrigatória (`#![warn(missing_docs)]`)
-- Traits comuns: `Transformable`, `Bounded`, `Evaluable`
-- Erros com `thiserror::Error`
-- Testes inline em `#[cfg(test)]`
-
-**Padrões de nomenclatura:**
-- Tipos: PascalCase (ex: `NurbsCurve`, `BoundingBox3`)
-- Funções/variáveis: snake_case (ex: `bounding_box()`, `new_entity_id()`)
-- Constantes: SCREAMING_SNAKE_CASE (ex: `DEFAULT_RESABS`)
-- Traits: PascalCase com suffixo descritivo quando apropriado
-
-**Exemplo de estrutura de módulo:**
-```rust
-//! Docstring do módulo
-
-#![warn(missing_docs)]
-#![warn(rust_2018_idioms)]
-
-pub mod submodulo;
-pub use submodulo::{Tipo, funcao};
-
-/// Documentação pública
-pub struct MinhaStruct {
-    campo: Tipo,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn test_something() {}
-}
-```
-
-### C#
-
-**Estilo:**
-- Convenções Microsoft C#
-- MVVM com CommunityToolkit.Mvvm (source generators)
-- `partial class` para ViewModels com `[ObservableProperty]`
-- Comandos com `[RelayCommand]`
-- Records para dados imutáveis
-
-**Padrões de nomenclatura:**
-- Classes/structs: PascalCase
-- Métodos/propriedades: PascalCase
-- Campos privados: _camelCase (com `[ObservableProperty]` gera automaticamente)
-- Constantes: PascalCase
-- Enums: PascalCase, valores PascalCase
-
-**Exemplo de ViewModel:**
+### 1. Direct Modeling First
 ```csharp
-public partial class MyViewModel : ObservableObject
-{
-    [ObservableProperty]
-    private string _nome = string.Empty;
-
-    [RelayCommand]
-    private void ExecuteAction()
-    {
-        // Implementação
-    }
+// Good: Immediate visual feedback
+public void CreateBox(float w, float h, float d) {
+    var mesh = MeshFactory.CreateBox(w, h, d);
+    mesh.Initialize(gl); // Immediate OpenGL upload
+    viewport.AddMesh(mesh);
+    RequestRender();
 }
 ```
 
-## Interop (Rust ↔ C#)
+### 2. Minimal Chrome, Maximum Viewport
+- Toolbar: Icon + text only when space permits
+- Model tree: Collapsible, auto-hide option
+- Properties: Contextual, appear on selection
 
-A comunicação entre o kernel Rust e a aplicação C# é feita via C-ABI:
-
-### Convenções FFI
-
-**Rust (nova_ffi):**
-```rust
-#[no_mangle]
-pub extern "C" fn nova_funcao(
-    param: NovaReal,
-    out_handle: *mut NovaHandle,
-) -> NovaResult {
-    // Validação de ponteiros nulos
-    if out_handle.is_null() {
-        return NovaResult::InvalidParameter;
-    }
-    // ...
-}
-```
-
-**C# (NovaCad.Kernel):**
+### 3. Dark Theme
 ```csharp
-public static partial class NovaKernel
-{
-    private const string LibraryName = "nova_ffi";
-
-    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern NovaResult nova_funcao(
-        double param,
-        out NovaHandle outHandle);
-}
+// Standard colors
+BackgroundColor = new Color(0.15f, 0.15f, 0.15f, 1.0f);  // #262626
+GridColor = new Color(0.3f, 0.3f, 0.3f, 1.0f);            // #4D4D4D
+SelectionColor = new Color(0.2f, 0.6f, 1.0f, 1.0f);       // #3399FF
 ```
 
-**Tipos interop correspondentes:**
-| Rust | C# | Descrição |
-|------|-----|-----------|
-| `NovaHandle` (u64) | `NovaHandle` (ulong) | Handle para objetos |
-| `NovaPoint3` | `NovaPoint3` | Ponto 3D (x, y, z) |
-| `NovaVec3` | `NovaVec3` | Vetor 3D (x, y, z) |
-| `NovaMat4` | `NovaMat4` | Matriz 4x4 (row-major) |
-| `NovaTransform` | `NovaTransform` | Translação + Quaternion |
-| `NovaResult` | `NovaResult` | Códigos de erro |
+### 4. Axis Colors (Industry Standard)
+- X (Red): `#FF0000`
+- Y (Green): `#00FF00`  
+- Z (Blue): `#0000FF`
 
-## Estratégia de Testes
+## Debugging Guidelines
 
-### Rust
-- Testes unitários em cada crate (`#[cfg(test)]`)
-- Proptest para testes de propriedade (`proptest`)
-- Criterion para benchmarks (`criterion`)
+### Viewport Issues
+1. Check logs: `%LOCALAPPDATA%\NovaCAD\viewport_logs.txt`
+2. Verify OpenGL initialization
+3. Confirm ViewModel-Viewport connection
+4. Check mesh initialization state
 
-```bash
-cd nova_kernel
-cargo test          # Todos os testes
-cargo test --lib    # Apenas testes da lib
-cargo bench         # Benchmarks
+### Kernel Issues
+1. Check if using stubs: `NovaKernel.IsUsingStubs`
+2. Verify handle validity
+3. Check for memory leaks in Rust (use `valgrind`)
+
+### Performance Issues
+1. Profile with Visual Studio Performance Profiler
+2. Check for unnecessary render calls
+3. Verify VSync status
+4. Monitor GPU memory usage
+
+## File Organization
+
+```
+NovaCAD/src/
+├── NovaCad.App/
+│   ├── ViewModels/           # One per major view
+│   ├── Views/
+│   │   ├── MainWindow.axaml  # Root layout
+│   │   └── ViewportControl   # OpenGL surface
+│   └── App.axaml.cs          # Startup logic
+├── NovaCad.Viewport/
+│   ├── Viewport3D.cs         # Core rendering
+│   ├── ViewportControl.cs    # Avalonia integration
+│   ├── Mesh.cs               # OpenGL mesh
+│   ├── MeshFactory.cs        # Primitive generators
+│   ├── Camera3D.cs           # Navigation
+│   └── ViewportDiagnostics.cs # Logging
+└── NovaCad.Kernel/
+    ├── NovaKernel.cs         # P/Invoke wrapper with stub fallback
+    └── NovaKernelStub.cs     # Pure C# implementation
 ```
 
-### C#
-- Testes unitários (xUnit/MSTest - não configurado ainda)
-- Testes de integração para chamadas P/Invoke
+## Common Tasks
 
-## Configurações Importantes
+### Adding a New Primitive
+1. Add `nova_make_<primitive>` to Rust kernel
+2. Add binding in `NovaKernel.cs`
+3. Add mesh generator in `MeshFactory.cs`
+4. Add command in `MainWindowViewModel.cs`
+5. Add button in `MainWindow.axaml`
 
-### Cargo.toml (Workspace)
-```toml
-[profile.release]
-opt-level = 3
-lto = "thin"
-codegen-units = 1
-panic = "abort"
+### Adding a New Tool
+1. Create tool class in `NovaCad.Viewport/Tools/`
+2. Implement `ITool` interface
+3. Add to `Viewport3D.ToolController`
+4. Bind to button/command
+
+### Debugging Render Issues
+```csharp
+// Enable verbose logging
+ViewportDiagnostics.IsEnabled = true;
+ViewportDiagnostics.MinimumLevel = LogLevel.Debug;
+
+// Check specific mesh
+var mesh = MeshFactory.CreateBox(10, 10, 10);
+ViewportDiagnostics.LogMeshInfo(mesh, "DebugBox");
 ```
 
-### .csproj (Propriedades comuns)
-```xml
-<TargetFramework>net8.0</TargetFramework>
-<ImplicitUsings>enable</ImplicitUsings>
-<Nullable>enable</Nullable>
-<LangVersion>12.0</LangVersion>
-```
+## Testing Checklist
 
-## Roadmap e Status
+Before committing:
+- [ ] Application opens without native DLL errors
+- [ ] Can create Box, Cylinder, Sphere
+- [ ] Viewport shows grid and axes
+- [ ] Camera navigation works (MMB, Shift+MMB, Scroll)
+- [ ] View presets work (Front, Top, Isometric)
+- [ ] Model tree updates correctly
+- [ ] No memory leaks in OpenGL resources
 
-### Fase 1 - Fundação ✅ (100%)
-- [x] Matemática completa (points, vectors, matrices, transforms)
-- [x] Geometria analítica (curves, surfaces)
-- [x] Topologia B-Rep (vertex, edge, face, body)
-- [x] Operadores Euler
-- [x] Interface C-ABI
-- [x] Estrutura da aplicação C#
+## References
 
-### Fase 2 - Operações 🔄 (Estrutura pronta)
-- [ ] Boolean operations (unite, subtract, intersect)
-- [ ] Features (extrude, revolve, sweep, loft)
-- [ ] Fillets and chamfers
-- [ ] STEP import/export
+### Design Inspiration
+- **Plasticity**: https://www.plasticity.xyz/
+  - Direct modeling paradigm
+  - Minimal UI design
+  - Push-pull interactions
 
-### Fase 3 - Edição Direta 🔄 (Estrutura pronta)
-- [ ] Face move/rotate/offset
-- [ ] Live rules
-- [ ] Geometric recognition
+- **Shapr3D**: https://www.shapr3d.com/
+  - Precision input methods
+  - Clean visualization
+  - Manufacturing focus
 
-### Fase 4 - Aplicação Completa 🔄 (UI básica pronta)
-- [ ] Viewport 3D com OpenGL
-- [ ] Steering Wheel
-- [ ] Seleção avançada
-- [ ] Mold tools
+### Technical References
+- **OpenGL**: https://www.khronos.org/opengl/
+- **Avalonia**: https://avaloniaui.net/
+- **Rust FFI**: https://doc.rust-lang.org/nomicon/ffi.html
+- **B-Rep Modeling**: "The NURBS Book" by Piegl & Tiller
 
-## Considerações de Segurança
+## Migration Path (Future)
 
-1. **FFI Safety**: Sempre validar ponteiros nulos no lado Rust
-2. **Handles**: Usar `NovaHandle` (u64) nunca expor ponteiros diretos
-3. **Erros**: Retornar códigos de erro, não panics através da FFI
-4. **Memory**: O kernel gerencia sua própria memória; liberar com `nova_body_release`
-5. **Thread Safety**: O kernel usa `Mutex` para estado global; não thread-safe por padrão
+If C# viewport becomes a bottleneck:
+1. Move `ViewportControl` to C++/CLI
+2. Use raw OpenGL 4.6 instead of ANGLE
+3. Keep C# for UI chrome only
+4. Interop via C API between C++ viewport and Rust kernel
 
-## Licenças
+---
 
-- **Nova Kernel (Rust)**: LGPL 2.1+
-- **Nova CAD Application**: GPL 3.0
-- **NovaSharp (C# Interop)**: MIT
-
-## Referências
-
-- [The NURBS Book](https://www.springer.com/gp/book/9783540615453) - Piegl & Tiller
-- [Computational Geometry](https://link.springer.com/book/10.1007/978-3-540-77974-2) - de Berg et al.
-- [Robust Geometric Computation](https://cs.nyu.edu/exact/) - Shewchuk
-- [AvaloniaUI Documentation](https://docs.avaloniaui.net/)
-- [Silk.NET Documentation](https://dotnet.github.io/Silk.NET/)
-
-## Contato e Contribuição
-
-O projeto está em desenvolvimento ativo. Para contribuir:
-1. Mantenha compatibilidade com a arquitetura de camadas
-2. Adicione testes para novas funcionalidades
-3. Documente APIs públicas
-4. Siga as convenções de código existentes
+Last updated: 2026-02-08

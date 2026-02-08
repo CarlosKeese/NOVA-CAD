@@ -1,10 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Silk.NET.OpenGL;
-using Silk.NET.Maths;
-using NovaCad.Core.Models;
-using NovaCad.Kernel;
+using Avalonia.OpenGL;
+using static NovaCad.Viewport.GlConstants;
 
 namespace NovaCad.Viewport
 {
@@ -13,23 +11,22 @@ namespace NovaCad.Viewport
     /// </summary>
     public unsafe class Viewport3D : IDisposable
     {
-        private GL _gl;
+        private GlInterface _gl;
         private Camera3D _camera;
-        private Renderer _renderer;
         
         private List<Mesh> _meshes;
         private bool _disposed;
         
         // Grid rendering
-        private uint _gridVao;
-        private uint _gridVbo;
+        private int _gridVao;
+        private int _gridVbo;
         private int _gridVertexCount;
-        private Shader _gridShader;
+        private int _gridShader;
         
         // Axes rendering
-        private uint _axesVao;
-        private uint _axesVbo;
-        private Shader _axesShader;
+        private int _axesVao;
+        private int _axesVbo;
+        private int _axesShader;
         
         // Viewport state
         public int Width { get; private set; }
@@ -44,12 +41,8 @@ namespace NovaCad.Viewport
         public bool ShowGrid { get; set; } = true;
         public bool ShowAxes { get; set; } = true;
         public bool Wireframe { get; set; } = false;
-        
-        // Events
-        public event EventHandler<ViewportClickEventArgs>? EntityPicked;
-        public event EventHandler<ViewportHoverEventArgs>? EntityHovered;
 
-        public Viewport3D(GL gl, int width, int height)
+        public Viewport3D(GlInterface gl, int width, int height)
         {
             _gl = gl ?? throw new ArgumentNullException(nameof(gl));
             Width = width;
@@ -62,10 +55,13 @@ namespace NovaCad.Viewport
 
         private void Initialize()
         {
+            // Initialize extension methods
+            GlExtensions.Initialize(_gl);
+
             // Setup OpenGL state
-            _gl.Enable(EnableCap.DepthTest);
-            _gl.Enable(EnableCap.Blend);
-            _gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+            _gl.Enable(GL_DEPTH_TEST);
+            _gl.Enable(GL_BLEND);
+            _gl.BlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
             
             // Initialize camera
             _camera = new Camera3D(
@@ -77,9 +73,6 @@ namespace NovaCad.Viewport
                 0.1f,                      // Near
                 1000.0f                    // Far
             );
-            
-            // Initialize renderer
-            _renderer = new Renderer(_gl);
             
             // Create grid
             CreateGrid();
@@ -118,7 +111,7 @@ void main()
 }
 ";
 
-            _gridShader = new Shader(_gl, vertexSource, fragmentSource);
+            _gridShader = CreateShaderProgram(vertexSource, fragmentSource);
 
             // Generate grid vertices (lines on XZ plane)
             float size = 50.0f;
@@ -148,19 +141,19 @@ void main()
             _gridVbo = _gl.GenBuffer();
             
             _gl.BindVertexArray(_gridVao);
-            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _gridVbo);
+            _gl.BindBuffer(GL_ARRAY_BUFFER, _gridVbo);
             
             fixed (float* ptr = vertices.ToArray())
             {
-                _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(vertices.Count * sizeof(float)), ptr, BufferUsageARB.StaticDraw);
+                _gl.BufferData(GL_ARRAY_BUFFER, vertices.Count * sizeof(float), new IntPtr(ptr), GL_STATIC_DRAW);
             }
             
             // Position attribute
-            _gl.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), (void*)0);
+            _gl.VertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), IntPtr.Zero);
             _gl.EnableVertexAttribArray(0);
             
             // Color attribute
-            _gl.VertexAttribPointer(1, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+            _gl.VertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), new IntPtr(3 * sizeof(float)));
             _gl.EnableVertexAttribArray(1);
             
             _gl.BindVertexArray(0);
@@ -196,7 +189,7 @@ void main()
 }
 ";
 
-            _axesShader = new Shader(_gl, vertexSource, fragmentSource);
+            _axesShader = CreateShaderProgram(vertexSource, fragmentSource);
 
             // X (red), Y (green), Z (blue) axes
             float axisLength = 2.0f;
@@ -220,37 +213,60 @@ void main()
             _axesVbo = _gl.GenBuffer();
             
             _gl.BindVertexArray(_axesVao);
-            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _axesVbo);
+            _gl.BindBuffer(GL_ARRAY_BUFFER, _axesVbo);
             
             fixed (float* ptr = vertices)
             {
-                _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(vertices.Length * sizeof(float)), ptr, BufferUsageARB.StaticDraw);
+                _gl.BufferData(GL_ARRAY_BUFFER, vertices.Length * sizeof(float), new IntPtr(ptr), GL_STATIC_DRAW);
             }
             
             // Position attribute
-            _gl.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), (void*)0);
+            _gl.VertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), IntPtr.Zero);
             _gl.EnableVertexAttribArray(0);
             
             // Color attribute
-            _gl.VertexAttribPointer(1, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+            _gl.VertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), new IntPtr(3 * sizeof(float)));
             _gl.EnableVertexAttribArray(1);
             
             _gl.BindVertexArray(0);
         }
 
+        private int CreateShaderProgram(string vertexSource, string fragmentSource)
+        {
+            int vertexShader = _gl.CreateShader(GL_VERTEX_SHADER);
+            _gl.ShaderSource(vertexShader, vertexSource);
+            _gl.CompileShader(vertexShader);
+
+            int fragmentShader = _gl.CreateShader(GL_FRAGMENT_SHADER);
+            _gl.ShaderSource(fragmentShader, fragmentSource);
+            _gl.CompileShader(fragmentShader);
+
+            int program = _gl.CreateProgram();
+            _gl.AttachShader(program, vertexShader);
+            _gl.AttachShader(program, fragmentShader);
+            _gl.LinkProgram(program);
+
+            _gl.DeleteShader(vertexShader);
+            _gl.DeleteShader(fragmentShader);
+
+            return program;
+        }
+
         /// <summary>
         /// Render the viewport
         /// </summary>
-        public void Render()
+        public void Render(GlInterface gl)
         {
             if (_disposed) return;
 
+            _gl = gl; // Update GL interface
+
             // Clear
             _gl.ClearColor(BackgroundColor.R, BackgroundColor.G, BackgroundColor.B, BackgroundColor.A);
-            _gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+            _gl.Clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             
             // Enable depth testing
-            _gl.Enable(EnableCap.DepthTest);
+            _gl.Enable(GL_DEPTH_TEST);
 
             // Calculate view-projection matrix
             Matrix4x4 viewProj = _camera.GetViewMatrix() * _camera.GetProjectionMatrix();
@@ -279,21 +295,37 @@ void main()
 
         private void RenderGrid(Matrix4x4 viewProj)
         {
-            _gridShader.Use();
-            _gridShader.SetMatrix4("uMVP", viewProj);
+            _gl.UseProgram(_gridShader);
+            
+            int mvpLocation = _gl.GetUniformLocationString(_gridShader, "uMVP");
+            if (mvpLocation >= 0)
+            {
+                float* matrixData = stackalloc float[16];
+                for (int i = 0; i < 16; i++)
+                    matrixData[i] = viewProj[i / 4, i % 4];
+                _gl.UniformMatrix4fv(mvpLocation, 1, GL_FALSE, matrixData);
+            }
             
             _gl.BindVertexArray(_gridVao);
-            _gl.DrawArrays(PrimitiveType.Lines, 0, (uint)_gridVertexCount);
+            _gl.DrawArrays(GL_LINES, 0, _gridVertexCount);
             _gl.BindVertexArray(0);
         }
 
         private void RenderAxes(Matrix4x4 viewProj)
         {
-            _axesShader.Use();
-            _axesShader.SetMatrix4("uMVP", viewProj);
+            _gl.UseProgram(_axesShader);
+            
+            int mvpLocation = _gl.GetUniformLocationString(_axesShader, "uMVP");
+            if (mvpLocation >= 0)
+            {
+                float* matrixData = stackalloc float[16];
+                for (int i = 0; i < 16; i++)
+                    matrixData[i] = viewProj[i / 4, i % 4];
+                _gl.UniformMatrix4fv(mvpLocation, 1, GL_FALSE, matrixData);
+            }
             
             _gl.BindVertexArray(_axesVao);
-            _gl.DrawArrays(PrimitiveType.Lines, 0, 6); // 6 vertices (3 axes * 2 points)
+            _gl.DrawArrays(GL_LINES, 0, 6); // 6 vertices (3 axes * 2 points)
             _gl.BindVertexArray(0);
         }
 
@@ -304,7 +336,7 @@ void main()
         {
             Width = width;
             Height = height;
-            _gl.Viewport(0, 0, (uint)width, (uint)height);
+            _gl.Viewport(0, 0, width, height);
             _camera.Aspect = (float)width / height;
         }
 
@@ -380,7 +412,6 @@ void main()
             if (button == ViewportMouseButton.Left)
             {
                 // Left click - could be selection
-                // For now, just log or implement picking later
             }
             else if (button == ViewportMouseButton.Middle)
             {
@@ -425,23 +456,12 @@ void main()
             _camera.Zoom(delta * 0.1f);
         }
 
-        /// <summary>
-        /// Pick entity at screen coordinates
-        /// </summary>
-        private uint? PickEntity(int x, int y)
-        {
-            // TODO: Implement ray casting
-            return null;
-        }
-
         public void Dispose()
         {
             if (_disposed) return;
 
-            _gridShader?.Dispose();
-            _axesShader?.Dispose();
-            _renderer?.Dispose();
-            
+            _gl.DeleteProgram(_gridShader);
+            _gl.DeleteProgram(_axesShader);
             _gl.DeleteBuffer(_gridVbo);
             _gl.DeleteVertexArray(_gridVao);
             _gl.DeleteBuffer(_axesVbo);
@@ -462,40 +482,5 @@ void main()
         Isometric,
         Dimetric,
         Trimetric
-    }
-
-    public class ViewportClickEventArgs : Avalonia.Interactivity.RoutedEventArgs
-    {
-        public uint EntityId { get; }
-        public int X { get; }
-        public int Y { get; }
-
-        public ViewportClickEventArgs(uint entityId, int x, int y)
-        {
-            EntityId = entityId;
-            X = x;
-            Y = y;
-        }
-    }
-
-    public class ViewportHoverEventArgs : EventArgs
-    {
-        public uint? EntityId { get; }
-        public int X { get; }
-        public int Y { get; }
-
-        public ViewportHoverEventArgs(uint? entityId, int x, int y)
-        {
-            EntityId = entityId;
-            X = x;
-            Y = y;
-        }
-    }
-
-    public enum ViewportMouseButton
-    {
-        Left,
-        Middle,
-        Right
     }
 }

@@ -8,6 +8,7 @@
     <LangVersion>12.0</LangVersion>
     <RootNamespace>NovaCad.App</RootNamespace>
     <AssemblyName>NovaCAD</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- <ApplicationIcon>Assets\nova-icon.ico</ApplicationIcon> -->
   </PropertyGroup>
 
